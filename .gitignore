@@ -11,6 +11,11 @@ vite.config.*.timestamp*
 *.local
 *.local.json
 
+# Secrets / env config (never commit real env files)
+.env
+.env.*
+!.env.example
+
 # Logs
 *.log
 
