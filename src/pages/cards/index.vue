@@ -21,7 +21,7 @@ const searchData = reactive({ status: "", code: "", batchNote: "" })
 // 类型映射
 const cardTypeMap: Record<string, string> = { month: "月卡", quarter: "季卡", year: "年卡", lifetime: "永久卡" }
 const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用" }
-const tagMap: Record<string, string> = { unused: "info", sold: "warning", activated: "success", disabled: "danger" }
+const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger" }
 
 // 生成卡密表单
 const DEFAULT_FORM: GenerateCardsRequestData = { type: "month", days: 30, count: 10, batchNote: "" }
@@ -37,37 +37,33 @@ const formRules: FormRules = {
   ]
 }
 
-function formatMoney(cents: number) {
-  return (cents / 100).toFixed(2)
-}
-
 function formatCode(raw: string): string {
-  if (!raw) return ''
-  const clean = raw.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-  if (clean.length === 16) return clean.match(/.{1,4}/g)?.join('-') || raw
+  if (!raw) return ""
+  const clean = raw.replace(/[^A-Z0-9]/gi, "").toUpperCase()
+  if (clean.length === 16) return clean.match(/.{1,4}/g)?.join("-") || raw
   return raw
 }
 
 /** 脱敏机器码：显示前4位...后4位 */
 function maskMachineCode(code: string | null): string {
-  if (!code) return '-'
+  if (!code) return "-"
   if (code.length <= 8) return code
-  return code.slice(0, 4) + '****' + code.slice(-4)
+  return `${code.slice(0, 4)}****${code.slice(-4)}`
 }
 
 /** 脱敏 IP 地址：保留前两段，后两段替换为 * */
 function maskIp(ip: string | null): string {
-  if (!ip) return '-'
-  const parts = ip.split('.')
-  if (parts.length === 4) return parts[0] + '.' + parts[1] + '.*.*'
-  if (ip.includes(':')) {
+  if (!ip) return "-"
+  const parts = ip.split(".")
+  if (parts.length === 4) return `${parts[0]}.${parts[1]}.*.*`
+  if (ip.includes(":")) {
     // IPv6：保留前两组
-    const segments = ip.split(':')
-    const masked = segments.slice(0, 2).join(':') + ':***'
-    if (masked.length > 15) return masked.slice(0, 18) + '...'
+    const segments = ip.split(":")
+    const masked = `${segments.slice(0, 2).join(":")}:***`
+    if (masked.length > 15) return `${masked.slice(0, 18)}...`
     return masked
   }
-  return ip.slice(0, 3) + '***'
+  return `${ip.slice(0, 3)}***`
 }
 
 // 获取表格数据
@@ -83,8 +79,9 @@ async function getTableData() {
     })
     tableData.value = data.items
     paginationData.total = data.total
-  } catch { /* 错误已由拦截器处理 */ }
-  finally { loading.value = false }
+  } catch { /* 错误已由拦截器处理 */ } finally {
+    loading.value = false
+  }
 }
 
 // 获取统计
@@ -96,11 +93,21 @@ async function getStats() {
 }
 
 // 搜索
-function handleSearch() { resetCurrentPage() }
-function resetSearch() { searchData.status = ""; searchData.code = ""; searchData.batchNote = ""; handleSearch() }
+function handleSearch() {
+  resetCurrentPage()
+}
+function resetSearch() {
+  searchData.status = ""
+  searchData.code = ""
+  searchData.batchNote = ""
+  handleSearch()
+}
 
 // 生成卡密
-function openDialog() { formData.value = { ...DEFAULT_FORM }; dialogVisible.value = true }
+function openDialog() {
+  formData.value = { ...DEFAULT_FORM }
+  dialogVisible.value = true
+}
 async function handleGenerate() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -111,23 +118,26 @@ async function handleGenerate() {
     dialogVisible.value = false
     getTableData()
     getStats()
-  } catch { /* */ }
-  finally { formLoading.value = false }
+  } catch { /* */ } finally {
+    formLoading.value = false
+  }
 }
 
 // 禁用
-async function handleDisable(row: CardData) {
-  await ElMessageBox.confirm(`确定禁用卡密 ${row.code}？`, "提示", { type: "warning" })
+async function handleDisable(row: any) {
+  const card = row as CardData
+  await ElMessageBox.confirm(`确定禁用卡密 ${card.code}？`, "提示", { type: "warning" })
   try {
-    await disableCardApi(row.id)
+    await disableCardApi(card.id)
     ElMessage.success("已禁用")
     getTableData()
   } catch { /* */ }
 }
 
 // 导出到剪贴板
-async function handleExport(row: CardData) {
-  await navigator.clipboard.writeText(row.code)
+async function handleExport(row: any) {
+  const card = row as CardData
+  await navigator.clipboard.writeText(card.code)
   ElMessage.success("已复制到剪贴板")
 }
 
@@ -139,16 +149,22 @@ onMounted(() => getStats())
   <div class="app-container">
     <!-- 统计卡片 -->
     <el-row :gutter="12" class="stats-row">
-      <el-col v-for="item in [
-        { label: '总计', key: 'all', color: '#909399' },
-        { label: '未使用', key: 'unused', color: '#409eff' },
-        { label: '已售出', key: 'sold', color: '#e6a23c' },
-        { label: '已激活', key: 'activated', color: '#67c23a' },
-        { label: '已禁用', key: 'disabled', color: '#f56c6c' }
-      ]" :key="item.key" :span="4">
+      <el-col
+        v-for="item in [
+          { label: '总计', key: 'all', color: '#909399' },
+          { label: '未使用', key: 'unused', color: '#409eff' },
+          { label: '已售出', key: 'sold', color: '#e6a23c' },
+          { label: '已激活', key: 'activated', color: '#67c23a' },
+          { label: '已禁用', key: 'disabled', color: '#f56c6c' },
+        ]" :key="item.key" :span="4"
+      >
         <el-card shadow="hover" class="stat-card">
-          <div class="stat-value" :style="{ color: item.color }">{{ stats[item.key] || 0 }}</div>
-          <div class="stat-label">{{ item.label }}</div>
+          <div class="stat-value" :style="{ color: item.color }">
+            {{ stats[item.key] || 0 }}
+          </div>
+          <div class="stat-label">
+            {{ item.label }}
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -168,8 +184,12 @@ onMounted(() => getStats())
           <el-input v-model="searchData.batchNote" placeholder="搜索批次备注" clearable />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
+          <el-button type="primary" @click="handleSearch">
+            查询
+          </el-button>
+          <el-button @click="resetSearch">
+            重置
+          </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -177,7 +197,9 @@ onMounted(() => getStats())
     <!-- 表格 -->
     <el-card shadow="never">
       <div class="toolbar-wrapper">
-        <el-button type="primary" @click="openDialog">生成卡密</el-button>
+        <el-button type="primary" @click="openDialog">
+          生成卡密
+        </el-button>
       </div>
       <div class="table-wrapper">
         <el-table v-loading="loading" :data="tableData" stripe>
@@ -188,12 +210,16 @@ onMounted(() => getStats())
             </template>
           </el-table-column>
           <el-table-column label="类型" width="80">
-            <template #default="{ row }">{{ cardTypeMap[row.type] || row.type }}</template>
+            <template #default="{ row }">
+              {{ cardTypeMap[row.type] || row.type }}
+            </template>
           </el-table-column>
           <el-table-column prop="days" label="天数" width="70" />
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
-              <el-tag :type="tagMap[row.status]" size="small">{{ cardStatusMap[row.status] }}</el-tag>
+              <el-tag :type="tagMap[row.status]" size="small">
+                {{ cardStatusMap[row.status] }}
+              </el-tag>
             </template>
           </el-table-column>
           <el-table-column label="机器码" width="140" show-overflow-tooltip>
@@ -217,10 +243,14 @@ onMounted(() => getStats())
             </template>
           </el-table-column>
           <el-table-column label="激活时间" width="160">
-            <template #default="{ row }">{{ row.activatedAt ? dayjs(row.activatedAt).format("YYYY-MM-DD HH:mm") : "-" }}</template>
+            <template #default="{ row }">
+              {{ row.activatedAt ? dayjs(row.activatedAt).format("YYYY-MM-DD HH:mm") : "-" }}
+            </template>
           </el-table-column>
           <el-table-column label="到期时间" width="160">
-            <template #default="{ row }">{{ row.expiresAt ? dayjs(row.expiresAt).format("YYYY-MM-DD HH:mm") : "-" }}</template>
+            <template #default="{ row }">
+              {{ row.expiresAt ? dayjs(row.expiresAt).format("YYYY-MM-DD HH:mm") : "-" }}
+            </template>
           </el-table-column>
           <el-table-column label="已验证" width="80" align="center">
             <template #default="{ row }">
@@ -231,13 +261,19 @@ onMounted(() => getStats())
             </template>
           </el-table-column>
           <el-table-column label="最后验证" width="160">
-            <template #default="{ row }">{{ row.lastVerifiedAt ? dayjs(row.lastVerifiedAt).format("YYYY-MM-DD HH:mm:ss") : "-" }}</template>
+            <template #default="{ row }">
+              {{ row.lastVerifiedAt ? dayjs(row.lastVerifiedAt).format("YYYY-MM-DD HH:mm:ss") : "-" }}
+            </template>
           </el-table-column>
           <el-table-column prop="batchNote" label="批次备注" width="120" show-overflow-tooltip />
           <el-table-column label="操作" width="160" fixed="right">
             <template #default="{ row }">
-              <el-button v-if="row.status !== 'disabled' && row.status !== 'activated'" type="danger" size="small" text @click="handleDisable(row)">禁用</el-button>
-              <el-button v-if="row.status !== 'activated'" type="primary" size="small" text @click="handleExport(row)">复制</el-button>
+              <el-button v-if="row.status !== 'disabled' && row.status !== 'activated'" type="danger" size="small" text @click="handleDisable(row)">
+                禁用
+              </el-button>
+              <el-button v-if="row.status !== 'activated'" type="primary" size="small" text @click="handleExport(row)">
+                复制
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -275,8 +311,12 @@ onMounted(() => getStats())
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="formLoading" @click="handleGenerate">确认生成</el-button>
+        <el-button @click="dialogVisible = false">
+          取消
+        </el-button>
+        <el-button type="primary" :loading="formLoading" @click="handleGenerate">
+          确认生成
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -303,14 +343,16 @@ onMounted(() => getStats())
 }
 .search-wrapper {
   margin-bottom: 16px;
-  :deep(.el-card__body) { padding-bottom: 0; }
+  :deep(.el-card__body) {
+    padding-bottom: 0;
+  }
 }
 .toolbar-wrapper {
   margin-bottom: 12px;
 }
 .table-wrapper {
   .code-text {
-    font-family: 'Consolas', monospace;
+    font-family: "Consolas", monospace;
     font-size: 13px;
     color: var(--el-color-primary);
   }
