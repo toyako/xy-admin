@@ -3,3 +3,7 @@ export type CurrentUserResponseData = ApiResponseData<{
   roles: string[]
   permissions?: string[]
 }>
+
+export type RefreshTokenResponseData = ApiResponseData<{
+  token: string
+}>

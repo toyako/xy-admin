@@ -7,7 +7,7 @@ export function checkPermission(rolesOrPermissions: string[]): boolean {
     const { roles, permissions } = useUserStore()
     return roles.some(role => rolesOrPermissions.includes(role)) || permissions.some(permission => rolesOrPermissions.includes(permission))
   } else {
-    console.error("参数必须是一个数组且长度大于 0，参考：checkPermission(['admin', 'permission:button-level'])")
+    if (import.meta.env.DEV) console.error("参数必须是一个数组且长度大于 0，参考：checkPermission(['admin', 'permission:button-level'])")
     return false
   }
 }

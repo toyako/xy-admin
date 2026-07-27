@@ -56,7 +56,10 @@ export function useWatermark(parentEl: Ref<HTMLElement | null> = bodyEl) {
 
   // 设置水印
   const setWatermark = (text: string, config: Partial<DefaultConfig> = {}) => {
-    if (!parentEl.value) return console.warn("请在 DOM 挂载完成后再调用 setWatermark 方法设置水印")
+    if (!parentEl.value) {
+      if (import.meta.env.DEV) console.warn("请在 DOM 挂载完成后再调用 setWatermark 方法设置水印")
+      return
+    }
     // 备份文本
     backupText = text
     // 合并配置
@@ -125,8 +128,7 @@ export function useWatermark(parentEl: Ref<HTMLElement | null> = bodyEl) {
     try {
       parentEl.value.removeChild(watermarkEl)
     } catch {
-      // 比如在无防御情况下，用户打开控制台删除了这个元素
-      console.warn("水印元素已不存在，请重新创建")
+      // 比如在无防御情况下，用户打开控制台删除了这个元素（静默处理）
     } finally {
       watermarkEl = null
     }

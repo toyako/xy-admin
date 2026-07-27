@@ -1,4 +1,4 @@
-import { getCurrentUserApi } from "@@/apis/users"
+import { getCurrentUserApi, logoutApi } from "@@/apis/users"
 import { setToken as _setToken, getToken, removeToken } from "@@/utils/local-storage"
 import { pinia } from "@/pinia"
 import { resetRouter, router } from "@/router"
@@ -36,8 +36,9 @@ export const useUserStore = defineStore("user", () => {
     isGotUserInfo.value = true
   }
 
-  // 模拟用户变化
+  // 模拟用户变化（仅开发环境可用，生产环境禁用以防滥用）
   const changeUser = (value: string) => {
+    if (!import.meta.env.DEV) return
     const newToken = `token-${value}`
     token.value = newToken
     _setToken(newToken)
@@ -47,6 +48,8 @@ export const useUserStore = defineStore("user", () => {
 
   // 登出
   const logout = () => {
+    // 通知后端废弃 Token（best-effort，不阻塞登出流程）
+    logoutApi().catch(() => { /* 忽略网络错误，本地状态仍会清理 */ })
     resetToken()
     resetRouter()
     resetTagsView()
@@ -60,6 +63,7 @@ export const useUserStore = defineStore("user", () => {
     token.value = ""
     roles.value = []
     permissions.value = []
+    username.value = ""
     isGotUserInfo.value = false
   }
 

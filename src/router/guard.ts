@@ -30,7 +30,15 @@ export function registerNavigationGuard(router: Router) {
     // 如果已经登录，并准备进入 Login 页面，则重定向到主页
     if (to.path === LOGIN_PATH) return "/"
     // 如果用户已经获得其权限信息
-    if (userStore.isGotUserInfo) return true
+    if (userStore.isGotUserInfo) {
+      // 检查路由角色要求：如果路由定义了 roles，验证当前用户是否拥有其中至少一个角色
+      const routeRoles = to.meta?.roles as string[] | undefined
+      if (routeRoles && routeRoles.length > 0) {
+        const hasRole = userStore.roles.some(role => routeRoles.includes(role))
+        if (!hasRole) return "/403"
+      }
+      return true
+    }
     // 否则要重新获取权限信息
     try {
       await userStore.getInfo()

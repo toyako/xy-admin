@@ -34,11 +34,11 @@ export default defineConfig(({ mode }) => {
       // 端口被占用时，是否直接退出
       strictPort: false,
       // 是否自动打开浏览器
-      open: true,
+      open: false,
       // 反向代理
       proxy: {
-        "/api/v1": {
-          target: "https://apifoxmock.com/m1/2930465-2145633-default",
+        "/api": {
+          target: "http://localhost:3300",
           // 是否为 WebSocket
           ws: false,
           // 是否允许跨域
@@ -58,6 +58,8 @@ export default defineConfig(({ mode }) => {
     },
     // 构建配置
     build: {
+      // 生产构建禁用 source map（防止源码泄漏）
+      sourcemap: false,
       // 自定义底层的 Rollup 打包配置
       rollupOptions: {
         output: {

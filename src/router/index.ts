@@ -63,7 +63,8 @@ export const constantRoutes: RouteRecordRaw[] = [
       }
     ]
   },
-  {
+  // Demo 路由仅开发环境可见
+  ...(import.meta.env.DEV ? [{
     path: "/demo",
     component: Layouts,
     redirect: "/demo/unocss",
@@ -155,8 +156,60 @@ export const constantRoutes: RouteRecordRaw[] = [
         ]
       }
     ]
-  },
+  }] : []),
   {
+    path: "/business",
+    component: Layouts,
+    name: "Business",
+    meta: {
+      title: "业务管理",
+      elIcon: "Shop",
+      alwaysShow: true
+    },
+    children: [
+      {
+        path: "cards",
+        component: () => import("@/pages/cards/index.vue"),
+        name: "CardsManage",
+        meta: {
+          title: "卡密管理",
+          roles: ["super_admin"],
+          keepAlive: true
+        }
+      },
+      {
+        path: "orders",
+        component: () => import("@/pages/orders/index.vue"),
+        name: "OrdersManage",
+        meta: {
+          title: "订单管理",
+          roles: ["super_admin"],
+          keepAlive: true
+        }
+      },
+      {
+        path: "config",
+        component: () => import("@/pages/config/index.vue"),
+        name: "SystemConfig",
+        meta: {
+          title: "系统配置",
+          roles: ["super_admin"]
+        }
+      },
+      {
+        path: "online-sessions",
+        component: () => import("@/pages/online-sessions/index.vue"),
+        name: "OnlineSessions",
+        meta: {
+          title: "在线列表",
+          roles: ["super_admin"],
+          keepAlive: true
+        }
+      }
+    ]
+  },
+  // 外部文档链接仅开发环境可见
+  ...(import.meta.env.DEV ? [{
     path: "/link",
     meta: {
       title: "文档链接",
@@ -188,7 +241,7 @@ export const constantRoutes: RouteRecordRaw[] = [
         }
       }
     ]
-  }
+  }] : [])
 ]
 
 /**
@@ -196,7 +249,7 @@ export const constantRoutes: RouteRecordRaw[] = [
  * @description 用来放置有权限 (roles / permissions 属性) 的路由
  * @description 必须带有唯一的 Name 属性
  */
-export const dynamicRoutes: RouteRecordRaw[] = [
+export const dynamicRoutes: RouteRecordRaw[] = import.meta.env.DEV ? [
   {
     path: "/permission",
     component: Layouts,
@@ -214,9 +267,7 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         name: "PermissionPageLevel",
         meta: {
           title: "页面级",
-          // 在路由中设置角色来控制访问
           roles: ["admin"],
-          // 在路由中设置权限标识字符来控制访问
           permissions: ["permission:page-level"]
         }
       },
@@ -226,15 +277,13 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         name: "PermissionButtonLevel",
         meta: {
           title: "按钮级",
-          // 如果未设置，则不限制该页面的访问
           roles: undefined,
-          // 在路由中设置权限标识字符来控制访问
           permissions: ["permission:button-level"]
         }
       }
     ]
   }
-]
+] : [];
 
 /** 路由实例 */
 export const router = createRouter({

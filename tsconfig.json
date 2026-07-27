@@ -32,7 +32,8 @@
     "importHelpers": true,
     // 不输出任何编译后的文件，只进行类型检查
     "noEmit": true,
-    "sourceMap": true,
+    // Source map 由 Vite 构建配置控制（生产构建默认关闭）
+    "sourceMap": false,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
