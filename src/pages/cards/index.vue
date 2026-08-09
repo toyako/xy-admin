@@ -19,7 +19,8 @@ const { paginationData, resetCurrentPage, watchPagination } = usePagination({ ca
 const searchData = reactive({ status: "", code: "", batchNote: "" })
 
 // 类型映射
-const cardTypeMap: Record<string, string> = { month: "月卡", quarter: "季卡", year: "年卡", lifetime: "永久卡" }
+const cardTypeMap: Record<string, string> = { minute: "分钟卡", hour: "小时卡", day: "日卡", month: "月卡", quarter: "季卡", year: "年卡", lifetime: "永久卡" }
+const dayPresets: Record<string, number> = { minute: 1 / 1440, hour: 1 / 24, day: 1, month: 30, quarter: 90, year: 365, lifetime: 36500 }
 const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用" }
 const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger" }
 
@@ -30,7 +31,7 @@ const formRef = useTemplateRef("formRef")
 const formLoading = ref(false)
 const formRules: FormRules = {
   type: [{ required: true, message: "请选择类型", trigger: "change" }],
-  days: [{ required: true, message: "请输入天数", trigger: "blur" }],
+  days: [{ required: true, type: "number", min: 0.0001, message: "天数需大于0", trigger: "blur" }],
   count: [
     { required: true, message: "请输入数量", trigger: "blur" },
     { type: "number", min: 1, max: 1000, message: "1~1000", trigger: "blur" }
@@ -107,6 +108,24 @@ function resetSearch() {
 function openDialog() {
   formData.value = { ...DEFAULT_FORM }
   dialogVisible.value = true
+}
+function onTypeChange(type: string) {
+  const preset = dayPresets[type]
+  if (preset !== undefined) formData.value.days = preset
+}
+function formatDaysHint(days: number): string {
+  if (!days || days <= 0) return ''
+  if (days < 1) {
+    const mins = Math.round(days * 1440)
+    const hrs = Math.round(days * 24)
+    if (mins === 1) return '≈ 1分钟'
+    if (hrs === 1) return '≈ 1小时'
+    if (mins < 60) return '≈ ' + mins + '分钟'
+    return '≈ ' + hrs.toFixed(1) + '小时'
+  }
+  if (days === 1) return '= 1天'
+  if (days >= 36500) return '= 永久'
+  return '= ' + days + '天'
 }
 async function handleGenerate() {
   const valid = await formRef.value?.validate().catch(() => false)
@@ -296,12 +315,15 @@ onMounted(() => getStats())
     <el-dialog v-model="dialogVisible" title="生成卡密" width="480px" destroy-on-close>
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px">
         <el-form-item label="类型" prop="type">
-          <el-select v-model="formData.type" style="width: 100%">
+          <el-select v-model="formData.type" style="width: 100%" @change="onTypeChange">
             <el-option v-for="(label, value) in cardTypeMap" :key="value" :label="label" :value="value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="天数" prop="days">
-          <el-input-number v-model="formData.days" :min="1" :max="36500" style="width: 100%" />
+        <el-form-item label="有效期" prop="days">
+          <el-input-number v-model="formData.days" :min="0.0001" :max="36500" :precision="6" :step="0.01" style="width: 100%" />
+          <div class="form-hint" style="margin-top:4px;font-size:12px;color:#909399">
+            {{ formatDaysHint(formData.days) }}
+          </div>
         </el-form-item>
         <el-form-item label="数量" prop="count">
           <el-input-number v-model="formData.count" :min="1" :max="1000" style="width: 100%" />

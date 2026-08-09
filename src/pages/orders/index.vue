@@ -16,7 +16,7 @@ const { paginationData, resetCurrentPage, watchPagination } = usePagination({ ca
 // 搜索
 const searchData = reactive({ status: "" })
 
-const cardTypeMap: Record<string, string> = { month: "月卡", quarter: "季卡", year: "年卡", lifetime: "永久卡" }
+const cardTypeMap: Record<string, string> = { minute: "分钟卡", hour: "小时卡", day: "日卡", month: "月卡", quarter: "季卡", year: "年卡", lifetime: "永久卡" }
 const orderStatusMap: Record<string, string> = { pending: "待支付", paid: "已支付", cancelled: "已取消", expired: "已过期" }
 const statusTagMap: Record<string, "info" | "warning" | "success" | "danger"> = { pending: "warning", paid: "success", cancelled: "info", expired: "danger" }
 
