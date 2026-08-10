@@ -41,6 +41,6 @@
   },
   // 需要被编译的文件列表
   "include": ["**/*.ts", "**/*.tsx", "**/*.vue", "**/*.d.ts"],
-  // 从编译中排除的文件列表
-  "exclude": ["node_modules", "dist"]
+  // 从编译中排除的文件列表（types/auto 已弃用，自动生成类型迁移至 types/gen）
+  "exclude": ["node_modules", "dist", "types/auto"]
 }

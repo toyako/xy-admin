@@ -126,19 +126,19 @@ export default defineConfig(({ mode }) => {
         iconDir: [resolve(__dirname, "src/common/assets/icons")],
         preserveColor: resolve(__dirname, "src/common/assets/icons/preserve-color"),
         dts: true,
-        dtsDir: resolve(__dirname, "types/auto")
+        dtsDir: resolve(__dirname, "types/gen")
       }),
       // 原子化 CSS
       UnoCSS(),
       // 自动按需导入 API
       AutoImport({
         imports: ["vue", "vue-router", "pinia"],
-        dts: "types/auto/auto-imports.d.ts",
+        dts: "types/gen/auto-imports.d.ts",
         resolvers: [ElementPlusResolver({ importStyle: false })]
       }),
       // 自动按需导入组件
       Components({
-        dts: "types/auto/components.d.ts",
+        dts: "types/gen/components.d.ts",
         resolvers: [ElementPlusResolver({ importStyle: false })]
       }),
       // 为项目开启 MCP Server

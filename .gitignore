@@ -1,5 +1,6 @@
 # Common
 dist
+dist-preview
 node_modules
 .eslintcache
 vite.config.*.timestamp*
