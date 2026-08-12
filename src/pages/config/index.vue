@@ -26,6 +26,10 @@ const configForm = reactive({
   wxpay_serial_no: "",
   wxpay_platform_cert: "",
   wxpay_notify_url: "",
+  alipay_app_id: "",
+  alipay_private_key: "",
+  alipay_public_key: "",
+  alipay_notify_url: "",
   plan_minute_price: "0.01",
   plan_hour_price: "0.10",
   plan_day_price: "1.00",
@@ -109,6 +113,10 @@ async function loadConfig() {
     configForm.wxpay_serial_no = data.wxpay_serial_no || ""
     configForm.wxpay_platform_cert = data.wxpay_platform_cert || ""
     configForm.wxpay_notify_url = data.wxpay_notify_url || ""
+    configForm.alipay_app_id = data.alipay_app_id || ""
+    configForm.alipay_private_key = data.alipay_private_key || ""
+    configForm.alipay_public_key = data.alipay_public_key || ""
+    configForm.alipay_notify_url = data.alipay_notify_url || ""
     configForm.plan_minute_price = ((Number(data.plan_minute_price) || 1) / 100).toFixed(2)
     configForm.plan_hour_price = ((Number(data.plan_hour_price) || 10) / 100).toFixed(2)
     configForm.plan_day_price = ((Number(data.plan_day_price) || 100) / 100).toFixed(2)
@@ -148,6 +156,10 @@ async function handleSave() {
       wxpay_serial_no: configForm.wxpay_serial_no,
       wxpay_platform_cert: configForm.wxpay_platform_cert,
       wxpay_notify_url: configForm.wxpay_notify_url,
+      alipay_app_id: configForm.alipay_app_id,
+      alipay_private_key: configForm.alipay_private_key,
+      alipay_public_key: configForm.alipay_public_key,
+      alipay_notify_url: configForm.alipay_notify_url,
       plan_minute_price: String(Math.round(Number(configForm.plan_minute_price) * 100)),
       plan_hour_price: String(Math.round(Number(configForm.plan_hour_price) * 100)),
       plan_day_price: String(Math.round(Number(configForm.plan_day_price) * 100)),
@@ -210,9 +222,12 @@ onMounted(() => loadConfig())
             <el-radio value="wxpay">
               微信支付（V3 直连扫码）
             </el-radio>
+            <el-radio value="alipay">
+              支付宝（电脑网站支付）
+            </el-radio>
           </el-radio-group>
           <div class="form-hint">
-            聚合支付：购买页跳转第三方收银台；微信支付：购买页显示二维码扫码支付。微信凭证未填完整时自动回退聚合支付。
+            聚合支付：购买页跳转第三方收银台；微信支付：购买页显示二维码扫码支付；支付宝：购买页跳转支付宝收银台。微信凭证未填完整时自动回退聚合支付。
           </div>
         </el-form-item>
 
@@ -277,6 +292,36 @@ onMounted(() => loadConfig())
             <el-input v-model="configForm.wxpay_notify_url" placeholder="https://后端地址/api/payment/wxnotify" />
             <div class="form-hint">
               默认取「后端地址 + /api/payment/wxnotify」；请确保微信商户后台 notify_url 与此一致
+            </div>
+          </el-form-item>
+        </template>
+
+        <template v-if="configForm.payment_provider === 'alipay'">
+          <el-divider content-position="left">
+            支付宝电脑网站支付
+          </el-divider>
+          <el-form-item label="应用 APPID">
+            <el-input v-model="configForm.alipay_app_id" placeholder="开放平台应用 APPID（如 202100...）" />
+            <div class="form-hint">
+              支付宝开放平台 → 应用信息 → APPID（应用需已上线并开通电脑网站支付）
+            </div>
+          </el-form-item>
+          <el-form-item label="应用私钥">
+            <el-input v-model="configForm.alipay_private_key" type="textarea" :rows="5" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" />
+            <div class="form-hint">
+              支付宝开放平台密钥工具生成的「应用私钥 RSA2048」（PKCS8）全文
+            </div>
+          </el-form-item>
+          <el-form-item label="支付宝公钥">
+            <el-input v-model="configForm.alipay_public_key" type="textarea" :rows="5" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----" />
+            <div class="form-hint">
+              加签方式页面下载的 alipayPublicKey_RSA2.txt 全文（用于验签回调）
+            </div>
+          </el-form-item>
+          <el-form-item label="回调地址(可选)">
+            <el-input v-model="configForm.alipay_notify_url" placeholder="https://后端地址/api/payment/alipay/notify" />
+            <div class="form-hint">
+              默认取「后端地址 + /api/payment/alipay/notify」
             </div>
           </el-form-item>
         </template>
