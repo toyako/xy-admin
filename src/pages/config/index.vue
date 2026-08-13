@@ -30,6 +30,8 @@ const configForm = reactive({
   alipay_private_key: "",
   alipay_public_key: "",
   alipay_notify_url: "",
+  contact_qq: "",
+  downloadItems: [] as { name: string, url: string }[],
   plan_minute_price: "0.01",
   plan_hour_price: "0.10",
   plan_day_price: "1.00",
@@ -113,6 +115,14 @@ async function loadConfig() {
     configForm.wxpay_serial_no = data.wxpay_serial_no || ""
     configForm.wxpay_platform_cert = data.wxpay_platform_cert || ""
     configForm.wxpay_notify_url = data.wxpay_notify_url || ""
+    configForm.contact_qq = data.contact_qq || ""
+    // 网盘下载列表：JSON 字符串 → 数组（容错）
+    try {
+      const parsed = JSON.parse(data.download_items || "[]")
+      configForm.downloadItems = Array.isArray(parsed) ? parsed : []
+    } catch {
+      configForm.downloadItems = []
+    }
     configForm.alipay_app_id = data.alipay_app_id || ""
     configForm.alipay_private_key = data.alipay_private_key || ""
     configForm.alipay_public_key = data.alipay_public_key || ""
@@ -160,6 +170,8 @@ async function handleSave() {
       alipay_private_key: configForm.alipay_private_key,
       alipay_public_key: configForm.alipay_public_key,
       alipay_notify_url: configForm.alipay_notify_url,
+      contact_qq: configForm.contact_qq,
+      download_items: JSON.stringify(configForm.downloadItems.filter(i => i.url && i.url.trim())),
       plan_minute_price: String(Math.round(Number(configForm.plan_minute_price) * 100)),
       plan_hour_price: String(Math.round(Number(configForm.plan_hour_price) * 100)),
       plan_day_price: String(Math.round(Number(configForm.plan_day_price) * 100)),
@@ -204,6 +216,12 @@ onMounted(() => loadConfig())
           <el-input v-model="configForm.buy_url" placeholder="https://example.com" />
           <div class="form-hint">
             启动器中「购买卡密」按钮跳转地址
+          </div>
+        </el-form-item>
+        <el-form-item label="客服QQ群">
+          <el-input v-model="configForm.contact_qq" placeholder="如 123456789（留空则页脚不显示）" />
+          <div class="form-hint">
+            用户端页脚「技术支持QQ群」显示此号码
           </div>
         </el-form-item>
       </el-form>
@@ -325,6 +343,41 @@ onMounted(() => loadConfig())
             </div>
           </el-form-item>
         </template>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="never" style="margin-top: 16px">
+      <template #header>
+        <span class="card-title">资源下载</span>
+        <span class="card-subtitle">用户端「资源下载」区展示，支持多个网盘（123/迅雷/蓝奏/百度等均可）</span>
+      </template>
+      <el-form :model="configForm" label-width="120px">
+        <el-form-item label="下载列表">
+          <div style="width: 100%">
+            <div
+              v-for="(item, idx) in configForm.downloadItems"
+              :key="idx"
+              style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center"
+            >
+              <el-input v-model="item.name" placeholder="网盘名称（如 123云盘）" style="width: 220px" />
+              <el-input v-model="item.url" placeholder="网盘链接 https://..." style="flex: 1" />
+              <el-button type="danger" plain size="small" @click="configForm.downloadItems.splice(idx, 1)">
+                删除
+              </el-button>
+            </div>
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              @click="configForm.downloadItems.push({ name: '', url: '' })"
+            >
+              + 添加网盘
+            </el-button>
+            <div class="form-hint" style="margin-top: 8px">
+              支持 123云盘、迅雷、蓝奏云、坚果云、115、腾讯微云等任意网盘链接，可添加 1~N 个；保存后用户端购买页自动展示。
+            </div>
+          </div>
+        </el-form-item>
       </el-form>
     </el-card>
 
