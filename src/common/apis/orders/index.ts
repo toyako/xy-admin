@@ -21,3 +21,11 @@ export function getOrdersStatsApi() {
     method: "get"
   })
 }
+
+/** 手动确认支付（补单：支付回调失败时手动完成订单并发卡） */
+export function confirmOrderApi(orderNo: string) {
+  return request({
+    url: `orders/${orderNo}/confirm`,
+    method: "post"
+  })
+}

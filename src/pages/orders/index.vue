@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { OrderData } from "@@/apis/orders/type"
-import { getOrdersApi, getOrdersStatsApi } from "@@/apis/orders"
+import { confirmOrderApi, getOrdersApi, getOrdersStatsApi } from "@@/apis/orders"
 import { usePagination } from "@@/composables/usePagination"
 import dayjs from "dayjs"
 
@@ -52,6 +52,27 @@ function handleSearch() {
 function resetSearch() {
   searchData.status = ""
   handleSearch()
+}
+
+/** 手动确认支付（补单：回调失败时手动完成并发放卡密） */
+async function handleConfirm(row: any) {
+  try {
+    await ElMessageBox.confirm(
+      `确认手动完成订单 ${row.orderNo} 并发放卡密？\n（仅用于支付回调失败的补单，请先核实买家确已付款）`,
+      "手动确认支付",
+      { type: "warning", confirmButtonText: "确认补单", cancelButtonText: "取消" }
+    )
+  } catch {
+    return
+  }
+  try {
+    await confirmOrderApi(row.orderNo)
+    ElMessage.success("补单成功，卡密已发放")
+    getTableData()
+    getStats()
+  } catch (e: any) {
+    ElMessage.error(e?.message || "补单失败")
+  }
 }
 
 watchPagination()
@@ -147,6 +168,14 @@ onMounted(() => getStats())
             </template>
           </el-table-column>
           <el-table-column prop="tradeNo" label="交易号" width="200" show-overflow-tooltip />
+          <el-table-column label="卡密" min-width="150">
+            <template #default="{ row }">
+              <template v-if="row.cardCode">
+                <code class="card-code">{{ row.cardCode }}</code>
+              </template>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
           <el-table-column label="创建时间" width="160">
             <template #default="{ row }">
               {{ dayjs(row.createdAt).format("YYYY-MM-DD HH:mm") }}
@@ -157,7 +186,21 @@ onMounted(() => getStats())
               {{ row.paidAt ? dayjs(row.paidAt).format("YYYY-MM-DD HH:mm") : "-" }}
             </template>
           </el-table-column>
-          <el-table-column prop="buyerInfo" label="买家信息" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="buyerInfo" label="买家信息" min-width="120" show-overflow-tooltip />
+          <el-table-column label="操作" width="130" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.status === 'pending' || row.status === 'expired'"
+                type="warning"
+                link
+                size="small"
+                @click="handleConfirm(row)"
+              >
+                手动确认支付
+              </el-button>
+              <span v-else class="op-note">-</span>
+            </template>
+          </el-table-column>
         </el-table>
       </div>
       <div class="pager-wrapper">
@@ -205,5 +248,18 @@ onMounted(() => getStats())
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+.card-code {
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12px;
+  color: #409eff;
+  background: rgba(64, 158, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+.op-note {
+  color: #c0c4cc;
+  font-size: 12px;
 }
 </style>

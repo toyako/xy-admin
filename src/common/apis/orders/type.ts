@@ -9,6 +9,8 @@ export interface OrderData {
   buyerInfo: string | null
   createdAt: string
   paidAt: string | null
+  /** 关联的卡密（管理端排查用，后端列表附带） */
+  cardCode?: string | null
 }
 
 export interface OrdersRequestData {
