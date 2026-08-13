@@ -173,6 +173,24 @@ function validatePayments(): string | null {
 async function handleSave() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
+  // 套餐价格手动校验（套餐 form 未绑 formRef，rules 不生效）
+  const priceKeys = [
+    "plan_minute_price",
+    "plan_hour_price",
+    "plan_day_price",
+    "plan_month_price",
+    "plan_quarter_price",
+    "plan_year_price",
+    "plan_lifetime_price"
+  ] as const
+  for (const k of priceKeys) {
+    const v = Number(configForm[k])
+    if (isNaN(v) || v <= 0) {
+      activeTab.value = "plans"
+      ElMessage.warning(`套餐价格无效：「${k.replace("plan_", "").replace("_price", "")}」请输入正数`)
+      return
+    }
+  }
   // 支付方式配置完整性校验
   const payErr = validatePayments()
   if (payErr) {
