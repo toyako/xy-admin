@@ -33,6 +33,23 @@ export function disableCardApi(id: number) {
   })
 }
 
+/** 删除卡密（仅未使用/已禁用） */
+export function removeCardApi(id: number) {
+  return request({
+    url: `cards/${id}`,
+    method: "delete"
+  })
+}
+
+/** 批量删除卡密（仅未使用/已禁用，非法项跳过） */
+export function batchRemoveCardsApi(ids: number[]) {
+  return request({
+    url: "cards/batch-delete",
+    method: "post",
+    data: { ids }
+  })
+}
+
 /** 卡密统计 */
 export function getCardsStatsApi() {
   return request<Cards.CardsStatsResponseData>({

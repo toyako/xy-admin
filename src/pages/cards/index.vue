@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import type { CardData, GenerateCardsRequestData } from "@@/apis/cards/type"
+import type { PlanItem } from "@@/apis/plans"
 import type { FormRules } from "element-plus"
-import { disableCardApi, generateCardsApi, getCardsApi, getCardsStatsApi } from "@@/apis/cards"
+import { batchRemoveCardsApi, disableCardApi, generateCardsApi, getCardsApi, getCardsStatsApi, removeCardApi } from "@@/apis/cards"
+import { getPlansApi } from "@@/apis/plans"
 import { usePagination } from "@@/composables/usePagination"
 import dayjs from "dayjs"
 
@@ -18,9 +20,33 @@ const { paginationData, resetCurrentPage, watchPagination } = usePagination({ ca
 // 搜索
 const searchData = reactive({ status: "", code: "", batchNote: "" })
 
-// 类型映射
-const cardTypeMap: Record<string, string> = { minute: "分钟卡", hour: "小时卡", day: "日卡", month: "月卡", quarter: "季卡", year: "年卡", lifetime: "永久卡" }
-const dayPresets: Record<string, number> = { minute: 1 / 1440, hour: 1 / 24, day: 1, month: 30, quarter: 90, year: 365, lifetime: 36500 }
+// 套餐列表（类型下拉动态来源）
+const plans = ref<PlanItem[]>([])
+const cardTypeMap = ref<Record<string, string>>({ minute: "分钟卡", hour: "小时卡", day: "日卡", month: "月卡", quarter: "季卡", year: "年卡", lifetime: "永久卡" })
+const dayPresets = ref<Record<string, number>>({ minute: 1 / 1440, hour: 1 / 24, day: 1, month: 30, quarter: 90, year: 365, lifetime: 36500 })
+async function loadPlans() {
+  try {
+    const { data } = await getPlansApi()
+    const list = data || []
+    plans.value = list
+    const map: Record<string, string> = {}
+    const days: Record<string, number> = {}
+    for (const p of list) {
+      map[p.type] = p.name
+      days[p.type] = p.days
+    }
+    if (Object.keys(map).length > 0) {
+      cardTypeMap.value = { ...cardTypeMap.value, ...map }
+      dayPresets.value = { ...dayPresets.value, ...days }
+    }
+    // 默认选中第一个启用的套餐
+    const first = list.find((p: PlanItem) => p.enabled)
+    if (first) {
+      DEFAULT_FORM.type = first.type
+      DEFAULT_FORM.days = first.days
+    }
+  } catch { /* 保留静态映射兜底 */ }
+}
 const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用" }
 const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger" }
 
@@ -110,22 +136,22 @@ function openDialog() {
   dialogVisible.value = true
 }
 function onTypeChange(type: string) {
-  const preset = dayPresets[type]
+  const preset = dayPresets.value[type]
   if (preset !== undefined) formData.value.days = preset
 }
 function formatDaysHint(days: number): string {
-  if (!days || days <= 0) return ''
+  if (!days || days <= 0) return ""
   if (days < 1) {
     const mins = Math.round(days * 1440)
     const hrs = Math.round(days * 24)
-    if (mins === 1) return '≈ 1分钟'
-    if (hrs === 1) return '≈ 1小时'
-    if (mins < 60) return '≈ ' + mins + '分钟'
-    return '≈ ' + hrs.toFixed(1) + '小时'
+    if (mins === 1) return "≈ 1分钟"
+    if (hrs === 1) return "≈ 1小时"
+    if (mins < 60) return `≈ ${mins}分钟`
+    return `≈ ${hrs.toFixed(1)}小时`
   }
-  if (days === 1) return '= 1天'
-  if (days >= 36500) return '= 永久'
-  return '= ' + days + '天'
+  if (days === 1) return "= 1天"
+  if (days >= 36500) return "= 永久"
+  return `= ${days}天`
 }
 async function handleGenerate() {
   const valid = await formRef.value?.validate().catch(() => false)
@@ -153,6 +179,59 @@ async function handleDisable(row: any) {
   } catch { /* */ }
 }
 
+// 删除单张
+async function handleRemove(row: any) {
+  const card = row as CardData
+  try {
+    await ElMessageBox.confirm(
+      `确定删除卡密 ${card.code}？\n（仅未使用/已禁用卡密可删除；已售出/已激活会破坏用户，禁止删除）`,
+      "删除卡密",
+      { type: "warning" }
+    )
+  } catch {
+    return
+  }
+  try {
+    await removeCardApi(card.id)
+    ElMessage.success("已删除")
+    getTableData()
+    getStats()
+  } catch (e: any) {
+    ElMessage.error(e?.message || "删除失败")
+  }
+}
+
+// 批量删除
+const selectedIds = ref<number[]>([])
+function onSelectionChange(rows: any[]) {
+  selectedIds.value = rows.map(r => r.id)
+}
+async function handleBatchRemove() {
+  if (selectedIds.value.length === 0) {
+    ElMessage.warning("请先勾选要删除的卡密")
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${selectedIds.value.length} 张卡密？\n（已售出/已激活的会自动跳过）`,
+      "批量删除",
+      { type: "warning" }
+    )
+  } catch {
+    return
+  }
+  try {
+    const res: any = await batchRemoveCardsApi(selectedIds.value)
+    const d = res?.data || {}
+    ElMessage.success(`删除 ${d.deleted ?? 0} 张，跳过 ${d.skipped ?? 0} 张`)
+    selectedIds.value = []
+    getTableData()
+    getStats()
+  } catch (e: any) {
+    ElMessage.error(e?.message || "删除失败")
+  }
+}
+
 // 导出到剪贴板
 async function handleExport(row: any) {
   const card = row as CardData
@@ -161,7 +240,10 @@ async function handleExport(row: any) {
 }
 
 watchPagination()
-onMounted(() => getStats())
+onMounted(() => {
+  getStats()
+  loadPlans()
+})
 </script>
 
 <template>
@@ -219,9 +301,13 @@ onMounted(() => getStats())
         <el-button type="primary" @click="openDialog">
           生成卡密
         </el-button>
+        <el-button type="danger" plain :disabled="selectedIds.length === 0" @click="handleBatchRemove">
+          批量删除{{ selectedIds.length ? `（${selectedIds.length}）` : "" }}
+        </el-button>
       </div>
       <div class="table-wrapper">
-        <el-table v-loading="loading" :data="tableData" stripe>
+        <el-table v-loading="loading" :data="tableData" stripe @selection-change="onSelectionChange">
+          <el-table-column type="selection" width="45" />
           <el-table-column prop="id" label="ID" width="60" />
           <el-table-column label="卡密" min-width="180">
             <template #default="{ row }">
@@ -285,10 +371,13 @@ onMounted(() => getStats())
             </template>
           </el-table-column>
           <el-table-column prop="batchNote" label="批次备注" width="120" show-overflow-tooltip />
-          <el-table-column label="操作" width="160" fixed="right">
+          <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
               <el-button v-if="row.status !== 'disabled' && row.status !== 'activated'" type="danger" size="small" text @click="handleDisable(row)">
                 禁用
+              </el-button>
+              <el-button v-if="row.status === 'unused' || row.status === 'disabled'" type="danger" size="small" text @click="handleRemove(row)">
+                删除
               </el-button>
               <el-button v-if="row.status !== 'activated'" type="primary" size="small" text @click="handleExport(row)">
                 复制
@@ -316,7 +405,13 @@ onMounted(() => getStats())
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px">
         <el-form-item label="类型" prop="type">
           <el-select v-model="formData.type" style="width: 100%" @change="onTypeChange">
-            <el-option v-for="(label, value) in cardTypeMap" :key="value" :label="label" :value="value" />
+            <el-option
+              v-for="p in plans.length ? plans : Object.keys(cardTypeMap).map(t => ({ type: t, name: cardTypeMap[t], days: dayPresets[t] || 1, enabled: true }))"
+              :key="p.type"
+              :label="`${p.name}（${formatDaysHint(p.days)}）`"
+              :value="p.type"
+              :disabled="p.enabled === false"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="有效期" prop="days">

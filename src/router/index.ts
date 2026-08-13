@@ -180,6 +180,16 @@ export const constantRoutes: RouteRecordRaw[] = [
         }
       },
       {
+        path: "plans",
+        component: () => import("@/pages/plans/index.vue"),
+        name: "PlanManage",
+        meta: {
+          title: "套餐管理",
+          roles: ["super_admin"],
+          keepAlive: true
+        }
+      },
+      {
         path: "orders",
         component: () => import("@/pages/orders/index.vue"),
         name: "OrdersManage",

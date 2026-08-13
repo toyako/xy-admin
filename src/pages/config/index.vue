@@ -35,14 +35,7 @@ const configForm = reactive({
   alipay_public_key: "",
   alipay_notify_url: "",
   contact_qq: "",
-  downloadItems: [] as { name: string, url: string }[],
-  plan_minute_price: "0.01",
-  plan_hour_price: "0.10",
-  plan_day_price: "1.00",
-  plan_month_price: "29.90",
-  plan_quarter_price: "69.90",
-  plan_year_price: "199.00",
-  plan_lifetime_price: "399.00"
+  downloadItems: [] as { name: string, url: string }[]
 })
 
 /** URL 格式校验 */
@@ -56,20 +49,6 @@ function urlValidator(_rule: unknown, value: string, callback: (error?: Error) =
   } else {
     callback(new Error("请输入有效的 URL（以 http:// 或 https:// 开头）"))
   }
-}
-
-/** 价格格式校验 */
-function priceValidator(_rule: unknown, value: string, callback: (error?: Error) => void) {
-  if (!value || value.trim() === "") {
-    callback(new Error("价格不能为空"))
-    return
-  }
-  const num = Number(value)
-  if (isNaN(num) || num <= 0) {
-    callback(new Error("请输入有效的正数价格"))
-    return
-  }
-  callback()
 }
 
 const formRules: FormRules = {
@@ -89,14 +68,7 @@ const formRules: FormRules = {
   epay_key: [
     { required: true, message: "商户密钥不能为空", trigger: "blur" },
     { min: 8, message: "密钥长度至少 8 个字符", trigger: "blur" }
-  ],
-  plan_minute_price: [{ validator: priceValidator, trigger: "blur" }],
-  plan_hour_price: [{ validator: priceValidator, trigger: "blur" }],
-  plan_day_price: [{ validator: priceValidator, trigger: "blur" }],
-  plan_month_price: [{ validator: priceValidator, trigger: "blur" }],
-  plan_quarter_price: [{ validator: priceValidator, trigger: "blur" }],
-  plan_year_price: [{ validator: priceValidator, trigger: "blur" }],
-  plan_lifetime_price: [{ validator: priceValidator, trigger: "blur" }]
+  ]
 }
 
 async function loadConfig() {
@@ -139,13 +111,6 @@ async function loadConfig() {
     configForm.alipay_private_key = data.alipay_private_key || ""
     configForm.alipay_public_key = data.alipay_public_key || ""
     configForm.alipay_notify_url = data.alipay_notify_url || ""
-    configForm.plan_minute_price = ((Number(data.plan_minute_price) || 1) / 100).toFixed(2)
-    configForm.plan_hour_price = ((Number(data.plan_hour_price) || 10) / 100).toFixed(2)
-    configForm.plan_day_price = ((Number(data.plan_day_price) || 100) / 100).toFixed(2)
-    configForm.plan_month_price = ((Number(data.plan_month_price) || 2990) / 100).toFixed(2)
-    configForm.plan_quarter_price = ((Number(data.plan_quarter_price) || 6990) / 100).toFixed(2)
-    configForm.plan_year_price = ((Number(data.plan_year_price) || 19900) / 100).toFixed(2)
-    configForm.plan_lifetime_price = ((Number(data.plan_lifetime_price) || 39900) / 100).toFixed(2)
   } catch { /* */ } finally {
     loading.value = false
   }
@@ -173,24 +138,6 @@ function validatePayments(): string | null {
 async function handleSave() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
-  // 套餐价格手动校验（套餐 form 未绑 formRef，rules 不生效）
-  const priceKeys = [
-    "plan_minute_price",
-    "plan_hour_price",
-    "plan_day_price",
-    "plan_month_price",
-    "plan_quarter_price",
-    "plan_year_price",
-    "plan_lifetime_price"
-  ] as const
-  for (const k of priceKeys) {
-    const v = Number(configForm[k])
-    if (isNaN(v) || v <= 0) {
-      activeTab.value = "plans"
-      ElMessage.warning(`套餐价格无效：「${k.replace("plan_", "").replace("_price", "")}」请输入正数`)
-      return
-    }
-  }
   // 支付方式配置完整性校验
   const payErr = validatePayments()
   if (payErr) {
@@ -228,14 +175,7 @@ async function handleSave() {
       alipay_public_key: configForm.alipay_public_key,
       alipay_notify_url: configForm.alipay_notify_url,
       contact_qq: configForm.contact_qq,
-      download_items: JSON.stringify(configForm.downloadItems.filter(i => i.url && i.url.trim())),
-      plan_minute_price: String(Math.round(Number(configForm.plan_minute_price) * 100)),
-      plan_hour_price: String(Math.round(Number(configForm.plan_hour_price) * 100)),
-      plan_day_price: String(Math.round(Number(configForm.plan_day_price) * 100)),
-      plan_month_price: String(Math.round(Number(configForm.plan_month_price) * 100)),
-      plan_quarter_price: String(Math.round(Number(configForm.plan_quarter_price) * 100)),
-      plan_year_price: String(Math.round(Number(configForm.plan_year_price) * 100)),
-      plan_lifetime_price: String(Math.round(Number(configForm.plan_lifetime_price) * 100))
+      download_items: JSON.stringify(configForm.downloadItems.filter(i => i.url && i.url.trim()))
     })
     ElMessage.success("保存成功")
     loadConfig()
@@ -452,103 +392,6 @@ onMounted(() => loadConfig())
           </el-form>
         </el-card>
       </el-tab-pane>
-
-      <el-tab-pane label="套餐价格" name="plans">
-        <el-card shadow="never">
-          <template #header>
-            <span class="card-title">套餐价格</span>
-            <span class="card-subtitle">支持分钟/小时/日卡（测试用），月/季/年/永久卡</span>
-          </template>
-          <el-form :model="configForm" :rules="formRules" label-width="120px" v-loading="loading">
-            <div class="price-grid">
-              <div class="price-item">
-                <el-form-item label="分钟卡" prop="plan_minute_price">
-                  <el-input v-model="configForm.plan_minute_price" placeholder="0.01" style="width: 160px">
-                    <template #prepend>
-                      ¥
-                    </template>
-                  </el-input>
-                  <div class="form-hint">
-                    1分钟 · 测试用
-                  </div>
-                </el-form-item>
-              </div>
-              <div class="price-item">
-                <el-form-item label="小时卡" prop="plan_hour_price">
-                  <el-input v-model="configForm.plan_hour_price" placeholder="0.10" style="width: 160px">
-                    <template #prepend>
-                      ¥
-                    </template>
-                  </el-input>
-                  <div class="form-hint">
-                    1小时 · 测试用
-                  </div>
-                </el-form-item>
-              </div>
-              <div class="price-item">
-                <el-form-item label="日卡" prop="plan_day_price">
-                  <el-input v-model="configForm.plan_day_price" placeholder="1.00" style="width: 160px">
-                    <template #prepend>
-                      ¥
-                    </template>
-                  </el-input>
-                  <div class="form-hint">
-                    1天
-                  </div>
-                </el-form-item>
-              </div>
-              <div class="price-item">
-                <el-form-item label="月卡" prop="plan_month_price">
-                  <el-input v-model="configForm.plan_month_price" placeholder="29.90" style="width: 160px">
-                    <template #prepend>
-                      ¥
-                    </template>
-                  </el-input>
-                  <div class="form-hint">
-                    30天
-                  </div>
-                </el-form-item>
-              </div>
-              <div class="price-item">
-                <el-form-item label="季卡" prop="plan_quarter_price">
-                  <el-input v-model="configForm.plan_quarter_price" placeholder="69.90" style="width: 160px">
-                    <template #prepend>
-                      ¥
-                    </template>
-                  </el-input>
-                  <div class="form-hint">
-                    90天
-                  </div>
-                </el-form-item>
-              </div>
-              <div class="price-item">
-                <el-form-item label="年卡" prop="plan_year_price">
-                  <el-input v-model="configForm.plan_year_price" placeholder="199.00" style="width: 160px">
-                    <template #prepend>
-                      ¥
-                    </template>
-                  </el-input>
-                  <div class="form-hint">
-                    365天
-                  </div>
-                </el-form-item>
-              </div>
-              <div class="price-item">
-                <el-form-item label="永久卡" prop="plan_lifetime_price">
-                  <el-input v-model="configForm.plan_lifetime_price" placeholder="399.00" style="width: 160px">
-                    <template #prepend>
-                      ¥
-                    </template>
-                  </el-input>
-                  <div class="form-hint">
-                    永久
-                  </div>
-                </el-form-item>
-              </div>
-            </div>
-          </el-form>
-        </el-card>
-      </el-tab-pane>
     </el-tabs>
 
     <div style="margin-top: 20px; text-align: center">
@@ -594,15 +437,5 @@ onMounted(() => loadConfig())
 }
 .config-tabs :deep(.el-tabs__content) {
   padding-top: 8px;
-}
-.price-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.price-item {
-  .el-form-item {
-    margin-bottom: 0;
-  }
 }
 </style>
