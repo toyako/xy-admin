@@ -184,25 +184,39 @@ onMounted(load)
             {{ formatDays(row.days) }}
           </template>
         </el-table-column>
-        <el-table-column label="卡密数量" width="90">
+        <el-table-column label="库存" width="80">
           <template #default="{ row }">
             {{ row.stats?.total || 0 }}
           </template>
         </el-table-column>
-        <el-table-column label="已成交" width="90">
+        <el-table-column label="可用" width="80">
           <template #default="{ row }">
-            {{ row.stats?.sold || 0 }}
+            <span v-if="(row.stats?.available || 0) === 0 && row.enabled" style="color: #f56c6c; font-weight: 600">售罄</span>
+            <span v-else>{{ row.stats?.available || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="已过期" width="90">
+        <el-table-column label="已售出" width="80" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tooltip content="有订单的卡密（真交易）" placement="top">
+              <span>{{ row.stats?.sold || 0 }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column label="已使用" width="80" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tooltip content="启动器激活过的卡密（含自测和真实用户）" placement="top">
+              <span>{{ row.stats?.activated || 0 }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column label="已过期" width="80">
           <template #default="{ row }">
             {{ row.stats?.expired || 0 }}
           </template>
         </el-table-column>
-        <el-table-column label="可用" width="90">
+        <el-table-column label="已禁用" width="80">
           <template #default="{ row }">
-            <span v-if="(row.stats?.available || 0) === 0 && row.enabled" style="color: #f56c6c; font-weight: 600">售罄</span>
-            <span v-else>{{ row.stats?.available || 0 }}</span>
+            {{ row.stats?.disabled || 0 }}
           </template>
         </el-table-column>
         <el-table-column label="展示" width="110">
