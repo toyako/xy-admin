@@ -110,7 +110,7 @@ async function handleSave() {
 async function handleDelete(row: any) {
   try {
     await ElMessageBox.confirm(
-      `确定删除套餐「${row.name}」？\n（该套餐下已有卡密时无法删除，可改为停用）`,
+      `确定删除套餐「${row.name}」？\n（该套餐下已有卡密时无法删除，可改为隐藏）`,
       "删除套餐",
       { type: "warning" }
     )
@@ -123,6 +123,18 @@ async function handleDelete(row: any) {
     load()
   } catch (e: any) {
     ElMessage.error(e?.message || "删除失败")
+  }
+}
+
+/** 展示/隐藏 快捷开关 */
+async function toggleShow(row: any, v: boolean | string | number) {
+  const enabled = v === true || v === "true" || v === 1
+  try {
+    await updatePlanApi(row.id, { enabled })
+    ElMessage.success(enabled ? "已展示" : "已隐藏")
+    load()
+  } catch (e: any) {
+    ElMessage.error(e?.message || "操作失败")
   }
 }
 
@@ -189,14 +201,19 @@ onMounted(load)
         </el-table-column>
         <el-table-column label="可用" width="90">
           <template #default="{ row }">
-            {{ row.stats?.available || 0 }}
+            <span v-if="(row.stats?.available || 0) === 0 && row.enabled" style="color: #f56c6c; font-weight: 600">售罄</span>
+            <span v-else>{{ row.stats?.available || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="80">
+        <el-table-column label="展示" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
-              {{ row.enabled ? "启用" : "停用" }}
-            </el-tag>
+            <el-switch
+              :model-value="row.enabled"
+              inline-prompt
+              active-text="展示"
+              inactive-text="隐藏"
+              @change="(v) => toggleShow(row, v)"
+            />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
@@ -211,7 +228,7 @@ onMounted(load)
         </el-table-column>
       </el-table>
       <div class="form-hint" style="margin-top: 12px">
-        停用套餐 = 用户端不再展示、不允许下单、不能生成卡密（历史卡密不受影响）。有卡密的套餐不能删除。
+        「展示」= 用户端可见（库存为 0 时用户端显示"售罄"并禁止购买）；「隐藏」= 用户端完全不展示。隐藏时不能下单、不能生成卡密（历史卡密不受影响）。有卡密的套餐不能删除。
       </div>
     </el-card>
 
@@ -240,8 +257,11 @@ onMounted(load)
         <el-form-item label="价格(元)">
           <el-input v-model="form.price" type="number" placeholder="29.9" style="width: 200px" />
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item label="展示">
           <el-switch v-model="form.enabled" />
+          <div class="form-hint" style="margin-top: 4px">
+            开=用户端可见（库存 0 时显示"售罄"）；关=用户端不展示
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
