@@ -28,3 +28,8 @@ yarn.lock
 .omc
 .agents/skills/*
 !.agents/skills/v3-*/
+
+# IDE config & auto-generated types
+.cursor/
+.vscode/
+types/gen/
