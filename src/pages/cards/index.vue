@@ -4,6 +4,7 @@ import type { PlanItem } from "@@/apis/plans"
 import type { FormRules } from "element-plus"
 import { batchRemoveCardsApi, disableCardApi, generateCardsApi, getCardByOrderApi, getCardsApi, getCardsStatsApi, removeCardApi, replaceCardApi } from "@@/apis/cards"
 import { getPlansApi } from "@@/apis/plans"
+import { usePagination } from "@@/composables/usePagination"
 import dayjs from "dayjs"
 
 defineOptions({ name: "CardsManage" })
@@ -12,6 +13,9 @@ const loading = ref(false)
 const tableData = ref<any[]>([])
 const stats = ref<any>({})
 const dialogVisible = ref(false)
+
+// 分页（外层根卡分页；树形子卡不参与分页）
+const { paginationData, resetCurrentPage, watchPagination } = usePagination({ callback: getTableData })
 
 // 搜索
 const searchData = reactive({ status: "", code: "", batchNote: "" })
@@ -89,37 +93,38 @@ function maskIp(ip: string | null): string {
   return `${ip.slice(0, 3)}***`
 }
 
-// 获取表格数据（树形全量加载：换卡关系嵌套展示）
+// 获取表格数据：外层根卡分页 + 换卡子卡全量挂载（树形）
 async function getTableData() {
   loading.value = true
   try {
-    const { data } = await getCardsApi({
-      currentPage: 1,
-      size: 10000,
-      status: searchData.status || undefined,
-      code: searchData.code || undefined,
-      batchNote: searchData.batchNote || undefined
+    const [rootRes, childRes] = await Promise.all([
+      getCardsApi({
+        currentPage: paginationData.currentPage!,
+        size: paginationData.pageSize!,
+        status: searchData.status || undefined,
+        code: searchData.code || undefined,
+        batchNote: searchData.batchNote || undefined,
+        only: "root"
+      }),
+      getCardsApi({ currentPage: 1, size: 5000, only: "children" })
+    ])
+    // 子卡按 replaceFromId 挂到对应父卡（只有当前页的父卡能挂上）
+    const roots = rootRes.data.items
+    const children = childRes.data.items
+    const childMap = new Map<number, any[]>()
+    children.forEach((c: any) => {
+      if (c.replaceFromId == null) return
+      if (!childMap.has(c.replaceFromId)) childMap.set(c.replaceFromId, [])
+      childMap.get(c.replaceFromId)!.push(c)
     })
-    tableData.value = buildTree(data.items)
+    tableData.value = roots.map((r: any) => ({
+      ...r,
+      children: childMap.get(r.id) || []
+    }))
+    paginationData.total = rootRes.data.total
   } catch { /* 错误已由拦截器处理 */ } finally {
     loading.value = false
   }
-}
-
-/** 平铺列表 → 树（原卡为父，换卡生成的新卡为子，支持多层） */
-function buildTree(items: any[]): any[] {
-  const map = new Map<number, any>()
-  items.forEach(c => map.set(c.id, { ...c, children: [] }))
-  const roots: any[] = []
-  for (const c of items) {
-    const node = map.get(c.id)!
-    if (c.replaceFromId && map.has(c.replaceFromId)) {
-      map.get(c.replaceFromId)!.children.push(node)
-    } else {
-      roots.push(node)
-    }
-  }
-  return roots
 }
 
 // 获取统计
@@ -132,7 +137,7 @@ async function getStats() {
 
 // 搜索
 function handleSearch() {
-  getTableData()
+  resetCurrentPage()
 }
 function resetSearch() {
   searchData.status = ""
@@ -165,11 +170,11 @@ function formatDaysHint(days: number): string {
   return `= ${days}天`
 }
 
-/** 表格天数格式化：天卡正常显示"30天"，小时卡"1小时"，分钟卡"4分钟"，永久卡"永久" */
+/** 表格天数格式化：天卡正常显示"30天"，小时卡"1小时"，分钟卡"4分钟"，永久卡"永久"；非整天保留 1 位小数 */
 function formatDays(days: number): string {
   if (!days || days <= 0) return "-"
   if (days >= 36500) return "永久"
-  if (days >= 1) return `${days} 天`
+  if (days >= 1) return `${Math.round(days * 10) / 10} 天`
   const hours = days * 24
   if (hours >= 1) return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} 小时`
   return `${Math.round(days * 1440)} 分钟`
@@ -336,6 +341,7 @@ async function handleExport(row: any) {
   ElMessage.success("已复制到剪贴板")
 }
 
+watchPagination()
 onMounted(() => {
   getStats()
   loadPlans()
@@ -548,8 +554,20 @@ onMounted(() => {
           </el-table-column>
         </el-table>
       </div>
+      <div class="pager-wrapper">
+        <el-pagination
+          v-model:current-page="paginationData.currentPage"
+          v-model:page-size="paginationData.pageSize"
+          :page-sizes="paginationData.pageSizes"
+          :total="paginationData.total"
+          :layout="paginationData.layout"
+          background
+          @size-change="handleSearch"
+          @current-change="getTableData"
+        />
+      </div>
       <div class="table-hint">
-        换卡关系以树形展示：原卡为父节点，换卡生成的新卡为子节点（▲ 展开查看）。
+        外层列表按卡密分页；换卡关系以树形展示：原卡为父节点，换卡生成的新卡为子节点（▲ 展开查看），子卡不占分页。
       </div>
     </el-card>
 

@@ -1,8 +1,8 @@
 import type * as Cards from "./type"
 import { request } from "@/http/axios"
 
-/** 获取卡密列表 */
-export function getCardsApi(params: Cards.CardsRequestData) {
+/** 获取卡密列表（only=root 根卡分页 / children 换卡新卡全量） */
+export function getCardsApi(params: Cards.CardsRequestData & { only?: "root" | "children" }) {
   return request<Cards.CardsResponseData>({
     url: "cards",
     method: "get",
@@ -11,7 +11,8 @@ export function getCardsApi(params: Cards.CardsRequestData) {
       pageSize: params.size,
       status: params.status || undefined,
       code: params.code || undefined,
-      batchNote: params.batchNote || undefined
+      batchNote: params.batchNote || undefined,
+      only: params.only || undefined
     }
   })
 }
