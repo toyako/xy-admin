@@ -153,6 +153,16 @@ function formatDaysHint(days: number): string {
   if (days >= 36500) return "= 永久"
   return `= ${days}天`
 }
+
+/** 表格天数格式化：天卡正常显示"30天"，小时卡"1小时"，分钟卡"4分钟"，永久卡"永久" */
+function formatDays(days: number): string {
+  if (!days || days <= 0) return "-"
+  if (days >= 36500) return "永久"
+  if (days >= 1) return `${days} 天`
+  const hours = days * 24
+  if (hours >= 1) return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} 小时`
+  return `${Math.round(days * 1440)} 分钟`
+}
 async function handleGenerate() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -306,10 +316,10 @@ onMounted(() => {
         </el-button>
       </div>
       <div class="table-wrapper">
-        <el-table v-loading="loading" :data="tableData" stripe @selection-change="onSelectionChange">
+        <el-table v-loading="loading" :data="tableData" fit stripe @selection-change="onSelectionChange">
           <el-table-column type="selection" width="45" />
           <el-table-column prop="id" label="ID" width="60" />
-          <el-table-column label="卡密" min-width="180">
+          <el-table-column label="卡密" width="220">
             <template #default="{ row }">
               <code class="code-text">{{ formatCode(row.code) }}</code>
             </template>
@@ -319,7 +329,11 @@ onMounted(() => {
               {{ cardTypeMap[row.type] || row.type }}
             </template>
           </el-table-column>
-          <el-table-column prop="days" label="天数" width="70" />
+          <el-table-column label="天数" width="100">
+            <template #default="{ row }">
+              {{ formatDays(row.days) }}
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
               <el-tag :type="tagMap[row.status]" size="small">

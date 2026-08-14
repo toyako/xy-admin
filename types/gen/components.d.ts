@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAside: typeof import('element-plus/es')['ElAside']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElBacktop: typeof import('element-plus/es')['ElBacktop']
@@ -19,7 +20,11 @@ declare module 'vue' {
     ElBreadcrumbItem: typeof import('element-plus/es')['ElBreadcrumbItem']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
+    ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
+    ElCheckboxGroup: typeof import('element-plus/es')['ElCheckboxGroup']
     ElCol: typeof import('element-plus/es')['ElCol']
+    ElCollapse: typeof import('element-plus/es')['ElCollapse']
+    ElCollapseItem: typeof import('element-plus/es')['ElCollapseItem']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
     ElContainer: typeof import('element-plus/es')['ElContainer']
     ElDialog: typeof import('element-plus/es')['ElDialog']
