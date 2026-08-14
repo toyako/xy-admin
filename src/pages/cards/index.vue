@@ -47,8 +47,16 @@ async function loadPlans() {
     }
   } catch { /* 保留静态映射兜底 */ }
 }
-const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用", replaced: "已换卡" }
-const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger", replaced: "danger" }
+const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用", replaced: "已换卡", expired: "已过期" }
+const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger", replaced: "danger", expired: "info" }
+
+/** 有效状态：activated + expiresAt 已过 → 显示"已过期"（前端动态判断，避免后端再发 SQL） */
+function effectiveStatus(row: any): string {
+  if (row.status === "activated" && row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
+    return "expired"
+  }
+  return row.status
+}
 
 // 生成卡密表单
 const DEFAULT_FORM: GenerateCardsRequestData = { type: "month", days: 30, count: 10, batchNote: "" }
@@ -427,7 +435,7 @@ onMounted(() => {
         <template v-if="orderQuery.result.card">
           <span class="oq-item">
             订单 <code>{{ orderQuery.result.order.orderNo }}</code>
-            （{{ cardStatusMap[orderQuery.result.card.status] }}）
+            （{{ cardStatusMap[effectiveStatus(orderQuery.result.card)] }}）
           </span>
           <span class="oq-item">
             卡密 <code class="oq-code">{{ formatCode(orderQuery.result.card.code) }}</code>
@@ -478,8 +486,8 @@ onMounted(() => {
           </el-table-column>
           <el-table-column label="状态" min-width="90">
             <template #default="{ row }">
-              <el-tag :type="tagMap[row.status]" size="small">
-                {{ cardStatusMap[row.status] }}
+              <el-tag :type="tagMap[effectiveStatus(row)]" size="small">
+                {{ cardStatusMap[effectiveStatus(row)] }}
               </el-tag>
             </template>
           </el-table-column>
