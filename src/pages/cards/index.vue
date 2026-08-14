@@ -48,7 +48,7 @@ async function loadPlans() {
   } catch { /* 保留静态映射兜底 */ }
 }
 const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用", replaced: "已换卡", expired: "已过期" }
-const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger", replaced: "danger", expired: "info" }
+const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger", replaced: "danger", expired: "danger" }
 
 /** 有效状态：activated + expiresAt 已过 → 显示"已过期"（前端动态判断，避免后端再发 SQL） */
 function effectiveStatus(row: any): string {
