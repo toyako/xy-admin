@@ -50,6 +50,22 @@ export function batchRemoveCardsApi(ids: number[]) {
   })
 }
 
+/** 换卡/补卡（剩余时间转移到新卡，原卡作废） */
+export function replaceCardApi(id: number) {
+  return request({
+    url: `cards/${id}/replace`,
+    method: "post"
+  })
+}
+
+/** 订单号查卡（返回订单 + 卡密 + 剩余时间） */
+export function getCardByOrderApi(orderNo: string) {
+  return request({
+    url: `cards/by-order/${encodeURIComponent(orderNo)}`,
+    method: "get"
+  })
+}
+
 /** 卡密统计 */
 export function getCardsStatsApi() {
   return request<Cards.CardsStatsResponseData>({

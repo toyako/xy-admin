@@ -2,20 +2,16 @@
 import type { CardData, GenerateCardsRequestData } from "@@/apis/cards/type"
 import type { PlanItem } from "@@/apis/plans"
 import type { FormRules } from "element-plus"
-import { batchRemoveCardsApi, disableCardApi, generateCardsApi, getCardsApi, getCardsStatsApi, removeCardApi } from "@@/apis/cards"
+import { batchRemoveCardsApi, disableCardApi, generateCardsApi, getCardByOrderApi, getCardsApi, getCardsStatsApi, removeCardApi, replaceCardApi } from "@@/apis/cards"
 import { getPlansApi } from "@@/apis/plans"
-import { usePagination } from "@@/composables/usePagination"
 import dayjs from "dayjs"
 
 defineOptions({ name: "CardsManage" })
 
 const loading = ref(false)
-const tableData = ref<CardData[]>([])
+const tableData = ref<any[]>([])
 const stats = ref<any>({})
 const dialogVisible = ref(false)
-
-// 分页
-const { paginationData, resetCurrentPage, watchPagination } = usePagination({ callback: getTableData })
 
 // 搜索
 const searchData = reactive({ status: "", code: "", batchNote: "" })
@@ -47,8 +43,8 @@ async function loadPlans() {
     }
   } catch { /* 保留静态映射兜底 */ }
 }
-const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用" }
-const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger" }
+const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用", replaced: "已换卡" }
+const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger", replaced: "danger" }
 
 // 生成卡密表单
 const DEFAULT_FORM: GenerateCardsRequestData = { type: "month", days: 30, count: 10, batchNote: "" }
@@ -93,22 +89,37 @@ function maskIp(ip: string | null): string {
   return `${ip.slice(0, 3)}***`
 }
 
-// 获取表格数据
+// 获取表格数据（树形全量加载：换卡关系嵌套展示）
 async function getTableData() {
   loading.value = true
   try {
     const { data } = await getCardsApi({
-      currentPage: paginationData.currentPage!,
-      size: paginationData.pageSize!,
+      currentPage: 1,
+      size: 10000,
       status: searchData.status || undefined,
       code: searchData.code || undefined,
       batchNote: searchData.batchNote || undefined
     })
-    tableData.value = data.items
-    paginationData.total = data.total
+    tableData.value = buildTree(data.items)
   } catch { /* 错误已由拦截器处理 */ } finally {
     loading.value = false
   }
+}
+
+/** 平铺列表 → 树（原卡为父，换卡生成的新卡为子，支持多层） */
+function buildTree(items: any[]): any[] {
+  const map = new Map<number, any>()
+  items.forEach(c => map.set(c.id, { ...c, children: [] }))
+  const roots: any[] = []
+  for (const c of items) {
+    const node = map.get(c.id)!
+    if (c.replaceFromId && map.has(c.replaceFromId)) {
+      map.get(c.replaceFromId)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  }
+  return roots
 }
 
 // 获取统计
@@ -121,7 +132,7 @@ async function getStats() {
 
 // 搜索
 function handleSearch() {
-  resetCurrentPage()
+  getTableData()
 }
 function resetSearch() {
   searchData.status = ""
@@ -178,10 +189,10 @@ async function handleGenerate() {
   }
 }
 
-// 禁用
+// 禁用（任何状态均可）
 async function handleDisable(row: any) {
   const card = row as CardData
-  await ElMessageBox.confirm(`确定禁用卡密 ${card.code}？`, "提示", { type: "warning" })
+  await ElMessageBox.confirm(`确定禁用卡密 ${formatCode(card.code)}？`, "提示", { type: "warning" })
   try {
     await disableCardApi(card.id)
     ElMessage.success("已禁用")
@@ -189,14 +200,17 @@ async function handleDisable(row: any) {
   } catch { /* */ }
 }
 
-// 删除单张
+// 删除单张（任何状态均可，强确认）
 async function handleRemove(row: any) {
   const card = row as CardData
+  const active = card.status === "activated" || card.status === "sold"
   try {
     await ElMessageBox.confirm(
-      `确定删除卡密 ${card.code}？\n（仅未使用/已禁用卡密可删除；已售出/已激活会破坏用户，禁止删除）`,
+      active
+        ? `⚠️ 该卡密${card.status === "activated" ? "已被用户使用" : "已售出"}！\n删除后用户将无法验证此卡密。\n\n卡密：${formatCode(card.code)}\n建议：用户卡失效应使用「换卡」功能转移剩余时间。\n\n确定仍要删除吗？`
+        : `确定删除卡密 ${formatCode(card.code)}？`,
       "删除卡密",
-      { type: "warning" }
+      { type: "warning", confirmButtonText: "确定删除", cancelButtonText: "取消" }
     )
   } catch {
     return
@@ -208,6 +222,79 @@ async function handleRemove(row: any) {
     getStats()
   } catch (e: any) {
     ElMessage.error(e?.message || "删除失败")
+  }
+}
+
+/** 剩余时间格式化 */
+function formatRemaining(ms: number | null): string {
+  if (ms === null) return "-"
+  if (ms <= 0) return "已过期"
+  const mins = Math.floor(ms / 60000)
+  if (mins < 60) return `${mins} 分钟`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} 小时 ${mins % 60} 分钟`
+  const days = Math.floor(hours / 24)
+  const h = hours % 24
+  return `${days} 天${h ? ` ${h} 小时` : ""}`
+}
+
+/** 换卡/补卡：原卡剩余时间转移到新卡，原卡作废（最多 5 次） */
+async function handleReplace(row: any, fromOrder = false) {
+  const card = row
+  if (card.status !== "activated") {
+    ElMessage.warning("仅已激活的卡密可换卡")
+    return
+  }
+  const remaining = card.expiresAt ? new Date(card.expiresAt).getTime() - Date.now() : 0
+  if (remaining <= 0) {
+    ElMessage.warning("该卡密已过期，无法换卡，请重新购买")
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定为该卡密换卡？\n卡密：${formatCode(card.code)}\n剩余时间：${formatRemaining(remaining)}\n\n换卡后：原卡立即作废，生成一张新卡（剩余时间自动转移）。\n新卡将作为原卡的子节点展示在列表中。`,
+      "换卡 / 补卡",
+      { type: "warning", confirmButtonText: "确认换卡", cancelButtonText: "取消" }
+    )
+  } catch {
+    return
+  }
+  try {
+    const res: any = await replaceCardApi(card.id)
+    const newCode = res?.data?.code || ""
+    ElMessage.success(`换卡成功！新卡：${formatCode(newCode)}（已复制）`)
+    if (newCode) {
+      try {
+        await navigator.clipboard.writeText(newCode)
+      } catch { /* */ }
+    }
+    getTableData()
+    getStats()
+    if (fromOrder) handleQueryOrder()
+  } catch (e: any) {
+    ElMessage.error(e?.message || "换卡失败")
+  }
+}
+
+// 订单号查询（后台专用）
+const orderQuery = reactive({ orderNo: "", result: null as any, loading: false, msg: "" })
+async function handleQueryOrder() {
+  const no = orderQuery.orderNo.trim()
+  if (!no) {
+    ElMessage.warning("请输入订单号")
+    return
+  }
+  orderQuery.loading = true
+  orderQuery.msg = ""
+  orderQuery.result = null
+  try {
+    const { data } = await getCardByOrderApi(no) as any
+    orderQuery.result = data
+    if (!data?.card) orderQuery.msg = "订单已支付但未关联卡密（可能还在处理中）"
+  } catch (e: any) {
+    orderQuery.msg = e?.message || "查询失败"
+  } finally {
+    orderQuery.loading = false
   }
 }
 
@@ -249,10 +336,10 @@ async function handleExport(row: any) {
   ElMessage.success("已复制到剪贴板")
 }
 
-watchPagination()
 onMounted(() => {
   getStats()
   loadPlans()
+  getTableData()
 })
 </script>
 
@@ -267,6 +354,7 @@ onMounted(() => {
           { label: '已售出', key: 'sold', color: '#e6a23c' },
           { label: '已激活', key: 'activated', color: '#67c23a' },
           { label: '已禁用', key: 'disabled', color: '#f56c6c' },
+          { label: '已换卡', key: 'replaced', color: '#b45309' },
         ]" :key="item.key" :span="4"
       >
         <el-card shadow="hover" class="stat-card">
@@ -314,41 +402,89 @@ onMounted(() => {
         <el-button type="danger" plain :disabled="selectedIds.length === 0" @click="handleBatchRemove">
           批量删除{{ selectedIds.length ? `（${selectedIds.length}）` : "" }}
         </el-button>
+        <div class="toolbar-spacer" />
+        <!-- 订单号查询（后台换卡/补卡用） -->
+        <div class="order-query">
+          <el-input
+            v-model="orderQuery.orderNo"
+            placeholder="输入订单号查卡密（换卡用）"
+            clearable
+            style="width: 260px"
+            @keyup.enter="handleQueryOrder"
+          />
+          <el-button type="primary" plain :loading="orderQuery.loading" @click="handleQueryOrder">
+            查询订单
+          </el-button>
+        </div>
+      </div>
+      <div v-if="orderQuery.result" class="order-query-result">
+        <template v-if="orderQuery.result.card">
+          <span class="oq-item">
+            订单 <code>{{ orderQuery.result.order.orderNo }}</code>
+            （{{ cardStatusMap[orderQuery.result.card.status] }}）
+          </span>
+          <span class="oq-item">
+            卡密 <code class="oq-code">{{ formatCode(orderQuery.result.card.code) }}</code>
+          </span>
+          <span class="oq-item">
+            剩余时间
+            <b :style="{ color: (orderQuery.result.card.remainingMs ?? 0) <= 0 ? '#f56c6c' : '#67c23a' }">
+              {{ formatRemaining(orderQuery.result.card.remainingMs) }}
+            </b>
+          </span>
+          <el-button
+            v-if="orderQuery.result.card.status === 'activated'"
+            type="warning"
+            size="small"
+            @click="handleReplace(orderQuery.result.card, true)"
+          >
+            换卡
+          </el-button>
+        </template>
+        <span v-else-if="orderQuery.msg" class="oq-msg">{{ orderQuery.msg }}</span>
       </div>
       <div class="table-wrapper">
-        <el-table v-loading="loading" :data="tableData" fit stripe @selection-change="onSelectionChange">
+        <el-table
+          v-loading="loading"
+          :data="tableData"
+          :fit="true"
+          row-key="id"
+          :tree-props="{ children: 'children' }"
+          stripe
+          @selection-change="onSelectionChange"
+        >
           <el-table-column type="selection" width="45" />
           <el-table-column prop="id" label="ID" width="60" />
-          <el-table-column label="卡密" width="220">
+          <el-table-column label="卡密" min-width="200">
             <template #default="{ row }">
               <code class="code-text">{{ formatCode(row.code) }}</code>
             </template>
           </el-table-column>
-          <el-table-column label="类型" width="80">
+          <el-table-column label="类型" min-width="80">
             <template #default="{ row }">
               {{ cardTypeMap[row.type] || row.type }}
             </template>
           </el-table-column>
-          <el-table-column label="天数" width="100">
+          <el-table-column label="天数" min-width="100">
             <template #default="{ row }">
               {{ formatDays(row.days) }}
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="90">
+          <el-table-column label="状态" min-width="90">
             <template #default="{ row }">
               <el-tag :type="tagMap[row.status]" size="small">
                 {{ cardStatusMap[row.status] }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="机器码" width="140" show-overflow-tooltip>
+          <el-table-column label="机器码" min-width="140" show-overflow-tooltip>
             <template #default="{ row }">
               <el-tooltip :content="row.machineCode || ''" placement="top" :disabled="!row.machineCode">
                 <span>{{ maskMachineCode(row.machineCode) }}</span>
               </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column label="IP地址" width="130" show-overflow-tooltip>
+          <el-table-column label="IP地址" min-width="130" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.realIp" :style="{ color: row.reportedIp && row.reportedIp !== row.realIp ? '#f56c6c' : '' }">
                 <el-tooltip :content="row.realIp" placement="top">
@@ -361,17 +497,17 @@ onMounted(() => {
               <span v-else>-</span>
             </template>
           </el-table-column>
-          <el-table-column label="激活时间" width="160">
+          <el-table-column label="激活时间" min-width="160">
             <template #default="{ row }">
               {{ row.activatedAt ? dayjs(row.activatedAt).format("YYYY-MM-DD HH:mm") : "-" }}
             </template>
           </el-table-column>
-          <el-table-column label="到期时间" width="160">
+          <el-table-column label="到期时间" min-width="160">
             <template #default="{ row }">
               {{ row.expiresAt ? dayjs(row.expiresAt).format("YYYY-MM-DD HH:mm") : "-" }}
             </template>
           </el-table-column>
-          <el-table-column label="已验证" width="80" align="center">
+          <el-table-column label="已验证" min-width="90" align="center">
             <template #default="{ row }">
               <span v-if="row.verifiedCount > 0" :style="{ color: row.verifiedCount > 5 ? '#f56c6c' : row.verifiedCount > 2 ? '#e6a23c' : '#67c23a' }">
                 {{ row.verifiedCount }}次
@@ -379,38 +515,41 @@ onMounted(() => {
               <span v-else>-</span>
             </template>
           </el-table-column>
-          <el-table-column label="最后验证" width="160">
+          <el-table-column label="最后验证" min-width="160">
             <template #default="{ row }">
               {{ row.lastVerifiedAt ? dayjs(row.lastVerifiedAt).format("YYYY-MM-DD HH:mm:ss") : "-" }}
             </template>
           </el-table-column>
-          <el-table-column prop="batchNote" label="批次备注" width="120" show-overflow-tooltip />
-          <el-table-column label="操作" width="200" fixed="right">
+          <el-table-column prop="batchNote" label="批次备注" min-width="90" show-overflow-tooltip />
+          <el-table-column label="换卡来源" min-width="110">
             <template #default="{ row }">
-              <el-button v-if="row.status !== 'disabled' && row.status !== 'activated'" type="danger" size="small" text @click="handleDisable(row)">
+              <span v-if="row.replaceFromId" style="color: #e6a23c; font-size: 12px">
+                由卡密 #{{ row.replaceFromId }} 换卡{{ row.replaceDepth > 1 ? `（第${row.replaceDepth}次）` : "" }}
+              </span>
+              <span v-else-if="row.replaceDepth > 0" style="color: #909399; font-size: 12px">换卡 ×{{ row.replaceDepth }}</span>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" min-width="240" fixed="right" align="center">
+            <template #default="{ row }">
+              <el-button v-if="row.status === 'activated'" type="warning" size="small" text @click="handleReplace(row)">
+                换卡
+              </el-button>
+              <el-button v-if="row.status !== 'disabled'" type="danger" size="small" text @click="handleDisable(row)">
                 禁用
               </el-button>
-              <el-button v-if="row.status === 'unused' || row.status === 'disabled'" type="danger" size="small" text @click="handleRemove(row)">
+              <el-button type="danger" size="small" text @click="handleRemove(row)">
                 删除
               </el-button>
-              <el-button v-if="row.status !== 'activated'" type="primary" size="small" text @click="handleExport(row)">
+              <el-button type="primary" size="small" text @click="handleExport(row)">
                 复制
               </el-button>
             </template>
           </el-table-column>
         </el-table>
       </div>
-      <div class="pager-wrapper">
-        <el-pagination
-          v-model:current-page="paginationData.currentPage"
-          v-model:page-size="paginationData.pageSize"
-          :page-sizes="paginationData.pageSizes"
-          :total="paginationData.total"
-          :layout="paginationData.layout"
-          background
-          @size-change="handleSearch"
-          @current-change="getTableData"
-        />
+      <div class="table-hint">
+        换卡关系以树形展示：原卡为父节点，换卡生成的新卡为子节点（▲ 展开查看）。
       </div>
     </el-card>
 
@@ -479,7 +618,58 @@ onMounted(() => {
   }
 }
 .toolbar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.order-query {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.order-query-result {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: rgba(230, 162, 60, 0.08);
+  border: 1px solid rgba(230, 162, 60, 0.3);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.oq-item {
+  color: #606266;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.oq-code {
+  font-family: "Consolas", monospace;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.oq-msg {
+  color: #f56c6c;
+  font-size: 13px;
+}
+
+.table-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #909399;
 }
 .table-wrapper {
   .code-text {
