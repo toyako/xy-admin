@@ -29,7 +29,6 @@ yarn.lock
 .agents/skills/*
 !.agents/skills/v3-*/
 
-# IDE config & auto-generated types
+# IDE config（types/gen 必须提交：Vercel 构建 vue-tsc 依赖自动导入类型声明）
 .cursor/
 .vscode/
-types/gen/
