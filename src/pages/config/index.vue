@@ -14,6 +14,7 @@ const enabledPayments = ref<string[]>([])
 // 配置表单
 const configForm = reactive({
   site_name: "",
+  launcher_title: "",
   site_url: "",
   backend_url: "",
   buy_url: "",
@@ -76,6 +77,7 @@ async function loadConfig() {
   try {
     const { data } = await getConfigApi()
     configForm.site_name = data.site_name || ""
+    configForm.launcher_title = data.launcher_title || ""
     configForm.site_url = data.site_url || ""
     configForm.backend_url = data.backend_url || ""
     configForm.buy_url = data.buy_url || data.site_url || ""
@@ -154,6 +156,7 @@ async function handleSave() {
   try {
     await updateConfigApi({
       site_name: configForm.site_name,
+      launcher_title: configForm.launcher_title,
       site_url: configForm.site_url,
       backend_url: configForm.backend_url,
       buy_url: configForm.buy_url,
@@ -198,6 +201,12 @@ onMounted(() => loadConfig())
           <el-form ref="formRef" :model="configForm" :rules="formRules" label-width="120px" v-loading="loading">
             <el-form-item label="站点名称">
               <el-input v-model="configForm.site_name" placeholder="仙域启动器" />
+            </el-form-item>
+            <el-form-item label="启动器标题">
+              <el-input v-model="configForm.launcher_title" placeholder="留空则用站点名称（启动器窗口标题原样展示，如：仙域启动器 群号:11111111）" />
+              <div class="el-form-item__tip">
+                启动器窗口标题会原样展示此内容，可包含公告/群号等，留空显示"仙域启动器"
+              </div>
             </el-form-item>
             <el-form-item label="站点 URL" prop="site_url" required>
               <el-input v-model="configForm.site_url" placeholder="https://example.com" />
