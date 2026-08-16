@@ -34,6 +34,23 @@ export function disableCardApi(id: number) {
   })
 }
 
+/** 启用卡密（仅已禁用可启用，恢复为未使用） */
+export function enableCardApi(id: number) {
+  return request({
+    url: `cards/${id}/enable`,
+    method: "post"
+  })
+}
+
+/** 批量禁用卡密（任何状态均可，已禁用跳过） */
+export function batchDisableCardsApi(ids: number[]) {
+  return request({
+    url: "cards/batch-disable",
+    method: "post",
+    data: { ids }
+  })
+}
+
 /** 删除卡密（仅未使用/已禁用） */
 export function removeCardApi(id: number) {
   return request({

@@ -2,7 +2,7 @@
 import type { CardData, GenerateCardsRequestData } from "@@/apis/cards/type"
 import type { PlanItem } from "@@/apis/plans"
 import type { FormRules } from "element-plus"
-import { batchRemoveCardsApi, disableCardApi, generateCardsApi, getCardByOrderApi, getCardsApi, getCardsStatsApi, removeCardApi, replaceCardApi } from "@@/apis/cards"
+import { batchDisableCardsApi, batchRemoveCardsApi, disableCardApi, enableCardApi, generateCardsApi, getCardByOrderApi, getCardsApi, getCardsStatsApi, removeCardApi, replaceCardApi } from "@@/apis/cards"
 import { getPlansApi } from "@@/apis/plans"
 import { usePagination } from "@@/composables/usePagination"
 import dayjs from "dayjs"
@@ -213,6 +213,29 @@ async function handleDisable(row: any) {
   } catch { /* */ }
 }
 
+// 启用（仅已禁用卡密显示该按钮）
+async function handleEnable(row: any) {
+  const card = row as CardData
+  await ElMessageBox.confirm(`确定启用卡密 ${formatCode(card.code)}？启用后恢复为「未使用」状态。`, "提示", { type: "info" })
+  try {
+    await enableCardApi(card.id)
+    ElMessage.success("已启用")
+    getTableData()
+  } catch { /* */ }
+}
+
+// 批量禁用（多选）
+async function handleBatchDisable() {
+  if (selectedIds.value.length === 0) return
+  await ElMessageBox.confirm(`确定禁用选中的 ${selectedIds.value.length} 张卡密？`, "批量禁用", { type: "warning" })
+  try {
+    const res = await batchDisableCardsApi(selectedIds.value)
+    const n = (res as any)?.success ?? selectedIds.value.length
+    ElMessage.success(`已禁用 ${n} 张`)
+    getTableData()
+  } catch { /* */ }
+}
+
 // 删除单张（任何状态均可，强确认）
 async function handleRemove(row: any) {
   const card = row as CardData
@@ -413,6 +436,9 @@ onMounted(() => {
         <el-button type="primary" @click="openDialog">
           生成卡密
         </el-button>
+        <el-button type="warning" plain :disabled="selectedIds.length === 0" @click="handleBatchDisable">
+          批量禁用{{ selectedIds.length ? `（${selectedIds.length}）` : "" }}
+        </el-button>
         <el-button type="danger" plain :disabled="selectedIds.length === 0" @click="handleBatchRemove">
           批量删除{{ selectedIds.length ? `（${selectedIds.length}）` : "" }}
         </el-button>
@@ -551,6 +577,9 @@ onMounted(() => {
               </el-button>
               <el-button v-if="row.status !== 'disabled'" type="danger" size="small" text @click="handleDisable(row)">
                 禁用
+              </el-button>
+              <el-button v-if="row.status === 'disabled'" type="success" size="small" text @click="handleEnable(row)">
+                启用
               </el-button>
               <el-button type="danger" size="small" text @click="handleRemove(row)">
                 删除
