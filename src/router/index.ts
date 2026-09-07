@@ -217,6 +217,16 @@ export const constantRoutes: RouteRecordRaw[] = [
           roles: ["super_admin"],
           keepAlive: true
         }
+      },
+      {
+        path: "account-reports",
+        component: () => import("@/pages/account-reports/index.vue"),
+        name: "AccountReports",
+        meta: {
+          title: "玩家管理",
+          roles: ["super_admin"],
+          keepAlive: true
+        }
       }
     ]
   },

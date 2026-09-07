@@ -1,0 +1,76 @@
+/** 角色节点（区服行 children） */
+export interface RoleNode {
+  id?: string
+  name?: string
+  lvl?: number
+  banned: boolean
+  banReason: string | null
+}
+
+/** 区服节点（账号行 children） */
+export interface ServerNode {
+  serverLabel: string
+  cardCode: string | null
+  roles: RoleNode[]
+  firstSeenAt: string
+  lastSeenAt: string
+}
+
+/** 账号节点（设备行 children） */
+export interface AccountNode {
+  gameAccount: string
+  servers: ServerNode[]
+  banned: boolean
+  banReason: string | null
+}
+
+/** 设备子树：设备 → 账号 → 区服 → 角色 */
+export interface DeviceTree {
+  deviceId: string
+  online: boolean
+  banned: boolean
+  banReason: string | null
+  cards: string[]
+  accounts: AccountNode[]
+}
+
+/** 顶层设备节点（列表项） */
+export interface DeviceNode {
+  deviceId: string
+  accountCount: number
+  serverCount: number
+  roleCount: number
+  cardCount: number
+  firstSeenAt: string
+  lastSeenAt: string
+  online: boolean
+  banned: boolean
+  banReason: string | null
+}
+
+export type DeviceListResponseData = ApiResponseData<{
+  items: DeviceNode[]
+  total: number
+}>
+
+export type DeviceTreeResponseData = ApiResponseData<DeviceTree>
+
+/** 封禁记录 */
+export interface AccountBanData {
+  id: number
+  targetType: "account" | "device" | "card" | "role"
+  targetValue: string
+  reason: string | null
+  bannedBy: string | null
+  createdAt: string
+}
+
+export type AccountBanListResponseData = ApiResponseData<{
+  items: AccountBanData[]
+  total: number
+}>
+
+export type BanResponseData = ApiResponseData<{
+  success: boolean
+  added: number
+}>
