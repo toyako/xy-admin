@@ -34,7 +34,7 @@ export interface DeviceTree {
   accounts: AccountNode[]
 }
 
-/** 顶层设备节点（列表项） */
+/** 顶层设备节点（listDevices 一次返回完整嵌套树） */
 export interface DeviceNode {
   deviceId: string
   accountCount: number
@@ -46,6 +46,7 @@ export interface DeviceNode {
   online: boolean
   banned: boolean
   banReason: string | null
+  accounts: AccountNode[]
 }
 
 export type DeviceListResponseData = ApiResponseData<{

@@ -1,8 +1,7 @@
 <script lang="ts" setup>
-import type { AccountBanData, DeviceNode, DeviceTree } from "@@/apis/account-reports/type"
+import type { AccountBanData, DeviceNode } from "@@/apis/account-reports/type"
 import {
   banPlayerApi,
-  deviceTreeApi,
   getAccountBansApi,
   listDevicesApi,
   unbanPlayerApi
@@ -15,7 +14,6 @@ defineOptions({ name: "AccountReports" })
 interface TreeRow {
   _type: "device" | "account" | "server" | "role"
   key: string
-  hasChildren?: boolean
   children?: TreeRow[]
   deviceId?: string
   gameAccount?: string
@@ -67,58 +65,39 @@ function toDeviceRow(d: DeviceNode): TreeRow {
     online: d.online,
     banned: d.banned,
     banReason: d.banReason,
-    hasChildren: d.accountCount > 0
-  }
-}
-
-/** 设备懒加载：拉整棵 账号→区服→角色 子树 */
-async function loadTree(row: any, _treeNode: any, resolve: (data: TreeRow[]) => void) {
-  if (row._type !== "device" || !row.deviceId) {
-    resolve([])
-    return
-  }
-  try {
-    const { data } = await deviceTreeApi(row.deviceId)
-    resolve(buildChildren(data))
-  } catch (e: any) {
-    ElMessage.error(e?.message || "加载设备详情失败")
-    resolve([])
-  }
-}
-
-function buildChildren(tree: DeviceTree): TreeRow[] {
-  return tree.accounts.map((a) => {
-    const lastSeen = a.servers
-      .map(s => s.lastSeenAt)
-      .sort((x, y) => (x > y ? -1 : 1))[0]
-    return {
-      _type: "account" as const,
-      key: `account-${tree.deviceId}-${a.gameAccount}`,
-      gameAccount: a.gameAccount,
-      banned: a.banned,
-      banReason: a.banReason,
-      lastSeenAt: lastSeen,
-      children: a.servers.map(s => ({
-        _type: "server" as const,
-        key: `server-${tree.deviceId}-${a.gameAccount}-${s.serverLabel}`,
-        serverLabel: s.serverLabel,
-        cardCode: s.cardCode,
-        lastSeenAt: s.lastSeenAt,
-        firstSeenAt: s.firstSeenAt,
-        banned: false,
-        banReason: null,
-        children: s.roles.map(r => ({
-          _type: "role" as const,
-          key: `role-${tree.deviceId}-${a.gameAccount}-${s.serverLabel}-${r.id || r.name}`,
-          roleName: r.name,
-          roleId: r.id,
-          lvl: r.lvl,
-          banned: r.banned,
-          banReason: r.banReason
+    children: (d.accounts || []).map((a) => {
+      const lastSeen = a.servers
+        .map(s => s.lastSeenAt)
+        .sort((x, y) => (x > y ? -1 : 1))[0]
+      return {
+        _type: "account" as const,
+        key: `account-${d.deviceId}-${a.gameAccount}`,
+        gameAccount: a.gameAccount,
+        banned: a.banned,
+        banReason: a.banReason,
+        lastSeenAt: lastSeen,
+        children: a.servers.map(s => ({
+          _type: "server" as const,
+          key: `server-${d.deviceId}-${a.gameAccount}-${s.serverLabel}`,
+          serverLabel: s.serverLabel,
+          cardCode: s.cardCode,
+          lastSeenAt: s.lastSeenAt,
+          firstSeenAt: s.firstSeenAt,
+          banned: false,
+          banReason: null,
+          children: s.roles.map(r => ({
+            _type: "role" as const,
+            key: `role-${d.deviceId}-${a.gameAccount}-${s.serverLabel}-${r.id || r.name}`,
+            roleName: r.name,
+            roleId: r.id,
+            lvl: r.lvl,
+            banned: r.banned,
+            banReason: r.banReason
+          }))
         }))
-      }))
-    } as TreeRow
-  })
+      } as TreeRow
+    })
+  }
 }
 
 function doSearch() {
@@ -367,10 +346,9 @@ onMounted(() => {
         v-loading="loading"
         :data="topRows"
         row-key="key"
-        lazy
-        :load="loadTree"
-        :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
+        :tree-props="{ children: 'children' }"
         class="tree-table"
+        default-expand-all
       >
         <el-table-column label="名称" min-width="280">
           <template #default="{ row }">
