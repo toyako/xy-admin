@@ -43,3 +43,11 @@ export function getAccountBansApi() {
     method: "get"
   })
 }
+
+/** 清空玩家上报数据（仅 super_admin；不动封禁名单） */
+export function clearPlayersApi() {
+  return request<AccountReports.ClearPlayersResponseData>({
+    url: "account-reports/players",
+    method: "delete"
+  })
+}

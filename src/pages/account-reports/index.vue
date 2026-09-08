@@ -2,6 +2,7 @@
 import type { AccountBanData, DeviceNode } from "@@/apis/account-reports/type"
 import {
   banPlayerApi,
+  clearPlayersApi,
   getAccountBansApi,
   listDevicesApi,
   unbanPlayerApi
@@ -22,6 +23,8 @@ interface TreeRow {
   roleName?: string
   roleId?: string
   lvl?: number
+  /** 🔒 角色锁状态 */
+  locked?: boolean
   banned: boolean
   banReason: string | null
   online?: boolean
@@ -91,6 +94,7 @@ function toDeviceRow(d: DeviceNode): TreeRow {
             roleName: r.name,
             roleId: r.id,
             lvl: r.lvl,
+            locked: !!r.locked,
             banned: r.banned,
             banReason: r.banReason
           }))
@@ -252,6 +256,27 @@ async function handleUnbanRow(row: any) {
   }
 }
 
+/** ===== 清空玩家数据（仅 super_admin；后端再兜底） ===== */
+async function onClearPlayers() {
+  try {
+    await ElMessageBox.confirm(
+      "确定清空全部玩家上报数据？\n\n⚠️ 将删除 设备→账号→区服→角色 画像（不影响封禁名单、卡密、订单）\n该操作不可恢复，请先确认已无需要的数据。",
+      "危险操作",
+      { type: "warning", confirmButtonText: "确认清空", cancelButtonText: "取消" }
+    )
+  } catch {
+    return
+  }
+  try {
+    const { data } = await clearPlayersApi()
+    ElMessage.success(`已清空 ${data?.deleted ?? 0} 条玩家记录`)
+    await fetchData()
+    if (bansDialog.visible) await fetchBans()
+  } catch (e: any) {
+    ElMessage.error(e?.message || "清空失败（需要 super_admin 权限）")
+  }
+}
+
 function typeLabel(t: string): string {
   const map: Record<string, string> = {
     account: "账号",
@@ -336,6 +361,9 @@ onMounted(() => {
           <el-button size="small" type="danger" plain @click="openBansDialog">
             封禁名单
           </el-button>
+          <el-button size="small" type="danger" @click="onClearPlayers">
+            清空数据
+          </el-button>
           <el-button size="small" @click="fetchData">
             刷新
           </el-button>
@@ -378,6 +406,13 @@ onMounted(() => {
               </el-tag>
 
               <span class="row-title" :class="{ 'text-banned': row.banned }">{{ rowTitle(row) }}</span>
+              <el-tag
+                v-if="row._type === 'role' && row.locked"
+                type="warning" size="small" effect="dark" class="ml6 lock-tag"
+                title="该角色设置了角色锁，登录需输入锁密码"
+              >
+                🔒 角色锁
+              </el-tag>
               <span v-if="rowSub(row)" class="row-sub">{{ rowSub(row) }}</span>
               <el-tag v-if="row._type === 'device' && row.banned" type="danger" size="small" class="ml6">
                 {{ row.banReason || "已封禁" }}

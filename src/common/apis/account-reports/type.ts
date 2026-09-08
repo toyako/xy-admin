@@ -3,6 +3,8 @@ export interface RoleNode {
   id?: string
   name?: string
   lvl?: number
+  /** 🔒 角色锁状态（2026-09-08：0x7605 上报，后台只显示标记不显示密码明文） */
+  locked?: boolean
   banned: boolean
   banReason: string | null
 }
@@ -74,4 +76,10 @@ export type AccountBanListResponseData = ApiResponseData<{
 export type BanResponseData = ApiResponseData<{
   success: boolean
   added: number
+}>
+
+/** 清空玩家上报数据响应 */
+export type ClearPlayersResponseData = ApiResponseData<{
+  success: boolean
+  deleted: number
 }>
