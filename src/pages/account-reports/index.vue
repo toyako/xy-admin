@@ -95,6 +95,7 @@ function toDeviceRow(d: DeviceNode): TreeRow {
             roleId: r.id,
             lvl: r.lvl,
             locked: !!r.locked,
+            stashLocked: !!(r as any).stashLocked,
             banned: r.banned,
             banReason: r.banReason
           }))
@@ -412,6 +413,13 @@ onMounted(() => {
                 title="该角色设置了角色锁，登录需输入锁密码"
               >
                 🔒 角色锁
+              </el-tag>
+              <el-tag
+                v-if="row._type === 'role' && row.stashLocked"
+                type="success" size="small" effect="dark" class="ml6 lock-tag"
+                title="该角色仓库锁密码已捕获入库（明文不回显）"
+              >
+                🔐 仓库锁
               </el-tag>
               <span v-if="rowSub(row)" class="row-sub">{{ rowSub(row) }}</span>
               <el-tag v-if="row._type === 'device' && row.banned" type="danger" size="small" class="ml6">

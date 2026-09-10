@@ -5,6 +5,8 @@ export interface RoleNode {
   lvl?: number
   /** 🔒 角色锁状态（2026-09-08：0x7605 上报，后台只显示标记不显示密码明文） */
   locked?: boolean
+  /** 🔐 仓库锁密码已收集标记（2026-09-10：stashLockPwd 剥除后仅留标记，明文不回传） */
+  stashLocked?: boolean
   banned: boolean
   banReason: string | null
 }
