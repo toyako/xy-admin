@@ -236,8 +236,6 @@ async function handleSave() {
       alipay_notify_url: gate("alipay", configForm.alipay_notify_url),
       contact_qq: configForm.contact_qq,
       qq_group_url: configForm.qq_group_url.trim(),
-      // 旧字段已废弃：一并清空，避免用户端回退到失效的旧「群Key」
-      qq_group_key: "",
       footer_text: configForm.footer_text.trim(),
       download_items: JSON.stringify(configForm.downloadItems.filter(i => i.url && i.url.trim()))
     })
