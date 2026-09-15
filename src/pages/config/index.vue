@@ -43,7 +43,7 @@ const configForm = reactive({
   alipay_public_key: "",
   alipay_notify_url: "",
   contact_qq: "",
-  qq_group_key: "",
+  qq_group_url: "",
   footer_text: "",
   downloadItems: [] as { name: string, url: string }[]
 })
@@ -124,7 +124,7 @@ async function loadConfig() {
     configForm.wxpay_platform_cert = data.wxpay_platform_cert || ""
     configForm.wxpay_notify_url = data.wxpay_notify_url || ""
     configForm.contact_qq = data.contact_qq || ""
-    configForm.qq_group_key = data.qq_group_key || ""
+    configForm.qq_group_url = data.qq_group_url || ""
     configForm.footer_text = data.footer_text || ""
     // 网盘下载列表：JSON 字符串 → 数组（容错）
     try {
@@ -235,7 +235,9 @@ async function handleSave() {
       alipay_public_key: gate("alipay", configForm.alipay_public_key),
       alipay_notify_url: gate("alipay", configForm.alipay_notify_url),
       contact_qq: configForm.contact_qq,
-      qq_group_key: configForm.qq_group_key.trim(),
+      qq_group_url: configForm.qq_group_url.trim(),
+      // 旧字段已废弃：一并清空，避免用户端回退到失效的旧「群Key」
+      qq_group_key: "",
       footer_text: configForm.footer_text.trim(),
       download_items: JSON.stringify(configForm.downloadItems.filter(i => i.url && i.url.trim()))
     })
@@ -291,12 +293,23 @@ onMounted(() => loadConfig())
                 用户端页脚显示此号码，同时作为「加入QQ群」按钮的目标群
               </div>
             </el-form-item>
-            <el-form-item label="QQ群 Key">
-              <el-input v-model="configForm.qq_group_key" placeholder="选填，如 AbCdEf123456" clearable />
+            <el-form-item label="QQ群加群链接">
+              <el-input
+                v-model="configForm.qq_group_url"
+                type="textarea"
+                :rows="3"
+                maxlength="500"
+                show-word-limit
+                placeholder="粘贴完整链接，或 qun.qq.com 生成的整段 HTML"
+              />
               <div class="form-hint">
-                选填。QQ群「设置 → 分享群链接 → 复制链接」，链接形如
-                <code>https://qm.qq.com/cgi-bin/qm/qr?k=<b>AbCdEf123456</b>&amp;jump_from=webapi</code>，
-                其中 <b>k=</b> 后面的值即群 Key。<br>
+                三种粘贴方式都支持，保存时自动归一化为完整链接：<br>
+                ① <b>群分享链接（推荐）</b>：QQ群「设置 → 分享群链接」，形如
+                <code>https://qm.qq.com/q/teNIBWRnfG</code>；<br>
+                ② <b>加群组件代码</b>：<a href="https://qun.qq.com/#/handy-tool/join-group" target="_blank">qun.qq.com 加群链接工具</a>
+                生成的整段 HTML（<code>&lt;a href="https://qm.qq.com/cgi-bin/qm/qr?k=…&amp;authKey=…"&gt;</code>），
+                会自动提取其中的链接；<br>
+                ③ 只填链接里的 ID（如 <code>teNIBWRnfG</code>）也会自动补全。<br>
                 填写后：用户点加群按钮直达 QQ 官方加群页（PC/手机均可）；留空：唤起本地 QQ 客户端并弹窗提供复制群号兜底。
               </div>
             </el-form-item>
