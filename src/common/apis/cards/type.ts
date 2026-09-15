@@ -23,6 +23,8 @@ export interface CardsRequestData {
   status?: string
   code?: string
   batchNote?: string
+  /** 卡密类型（minute/hour/day/month/quarter/year/lifetime） */
+  type?: string
 }
 
 export interface CardsStatsData {

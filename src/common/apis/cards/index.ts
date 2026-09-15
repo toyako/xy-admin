@@ -12,6 +12,7 @@ export function getCardsApi(params: Cards.CardsRequestData & { only?: "root" | "
       status: params.status || undefined,
       code: params.code || undefined,
       batchNote: params.batchNote || undefined,
+      type: params.type || undefined,
       only: params.only || undefined
     }
   })

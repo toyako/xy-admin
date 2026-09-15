@@ -174,6 +174,15 @@ function validatePayments(): string | null {
   return null
 }
 
+/**
+ * 未勾选的通道一律提交空值（而不是沿用表单里的旧值）。
+ * 后端会把空值落库，从而清掉上一次留存下来的配置 ——
+ * 保证「取消勾选 → 保存」之后，再次勾选时看到的是一份干净的空配置，不会复用上次的内容。
+ */
+function gate(channel: string, value: string): string {
+  return enabledPayments.value.includes(channel) ? value : ""
+}
+
 async function handleSave() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -200,27 +209,27 @@ async function handleSave() {
       payment_provider: configForm.payment_provider,
       payment_methods: JSON.stringify(enabledPayments.value),
       payment_gateway_priority: configForm.payment_gateway_priority,
-      epay_url: configForm.epay_url,
-      epay_pid: configForm.epay_pid,
-      epay_key: configForm.epay_key,
-      epay_payment_type: configForm.epay_payment_type,
-      shujie_url: configForm.shujie_url,
-      shujie_pid: configForm.shujie_pid,
-      shujie_private_key: configForm.shujie_private_key,
-      shujie_platform_public_key: configForm.shujie_platform_public_key,
-      shujie_payment_type: configForm.shujie_payment_type,
-      shujie_notify_url: configForm.shujie_notify_url,
-      wxpay_mchid: configForm.wxpay_mchid,
-      wxpay_appid: configForm.wxpay_appid,
-      wxpay_api_v3_key: configForm.wxpay_api_v3_key,
-      wxpay_private_key: configForm.wxpay_private_key,
-      wxpay_serial_no: configForm.wxpay_serial_no,
-      wxpay_platform_cert: configForm.wxpay_platform_cert,
-      wxpay_notify_url: configForm.wxpay_notify_url,
-      alipay_app_id: configForm.alipay_app_id,
-      alipay_private_key: configForm.alipay_private_key,
-      alipay_public_key: configForm.alipay_public_key,
-      alipay_notify_url: configForm.alipay_notify_url,
+      epay_url: gate("epay", configForm.epay_url),
+      epay_pid: gate("epay", configForm.epay_pid),
+      epay_key: gate("epay", configForm.epay_key),
+      epay_payment_type: gate("epay", configForm.epay_payment_type),
+      shujie_url: gate("shujie", configForm.shujie_url),
+      shujie_pid: gate("shujie", configForm.shujie_pid),
+      shujie_private_key: gate("shujie", configForm.shujie_private_key),
+      shujie_platform_public_key: gate("shujie", configForm.shujie_platform_public_key),
+      shujie_payment_type: gate("shujie", configForm.shujie_payment_type),
+      shujie_notify_url: gate("shujie", configForm.shujie_notify_url),
+      wxpay_mchid: gate("wxpay", configForm.wxpay_mchid),
+      wxpay_appid: gate("wxpay", configForm.wxpay_appid),
+      wxpay_api_v3_key: gate("wxpay", configForm.wxpay_api_v3_key),
+      wxpay_private_key: gate("wxpay", configForm.wxpay_private_key),
+      wxpay_serial_no: gate("wxpay", configForm.wxpay_serial_no),
+      wxpay_platform_cert: gate("wxpay", configForm.wxpay_platform_cert),
+      wxpay_notify_url: gate("wxpay", configForm.wxpay_notify_url),
+      alipay_app_id: gate("alipay", configForm.alipay_app_id),
+      alipay_private_key: gate("alipay", configForm.alipay_private_key),
+      alipay_public_key: gate("alipay", configForm.alipay_public_key),
+      alipay_notify_url: gate("alipay", configForm.alipay_notify_url),
       contact_qq: configForm.contact_qq,
       download_items: JSON.stringify(configForm.downloadItems.filter(i => i.url && i.url.trim()))
     })

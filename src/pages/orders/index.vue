@@ -14,7 +14,7 @@ const stats = ref<any>({})
 const { paginationData, resetCurrentPage, watchPagination } = usePagination({ callback: getTableData })
 
 // 搜索
-const searchData = reactive({ status: "" })
+const searchData = reactive({ status: "", orderNo: "", cardCode: "" })
 
 const cardTypeMap: Record<string, string> = { minute: "分钟卡", hour: "小时卡", day: "日卡", month: "月卡", quarter: "季卡", year: "年卡", lifetime: "永久卡" }
 const orderStatusMap: Record<string, string> = { pending: "待支付", paid: "已支付", cancelled: "已取消", expired: "已过期" }
@@ -30,7 +30,9 @@ async function getTableData() {
     const { data } = await getOrdersApi({
       currentPage: paginationData.currentPage!,
       size: paginationData.pageSize!,
-      status: searchData.status || undefined
+      status: searchData.status || undefined,
+      orderNo: searchData.orderNo.trim() || undefined,
+      cardCode: searchData.cardCode.trim() || undefined
     })
     tableData.value = data.items
     paginationData.total = data.total
@@ -51,6 +53,8 @@ function handleSearch() {
 }
 function resetSearch() {
   searchData.status = ""
+  searchData.orderNo = ""
+  searchData.cardCode = ""
   handleSearch()
 }
 
@@ -129,9 +133,27 @@ onMounted(() => getStats())
     <el-card shadow="never" class="search-wrapper">
       <el-form :inline="true" :model="searchData">
         <el-form-item label="状态">
-          <el-select v-model="searchData.status" clearable placeholder="全部" style="width: 150px">
+          <el-select v-model="searchData.status" clearable placeholder="全部" style="width: 130px">
             <el-option v-for="(label, value) in orderStatusMap" :key="value" :label="label" :value="value" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="订单号">
+          <el-input
+            v-model="searchData.orderNo"
+            placeholder="订单号（支持模糊）"
+            clearable
+            style="width: 200px"
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item label="卡密">
+          <el-input
+            v-model="searchData.cardCode"
+            placeholder="卡密（支持模糊）"
+            clearable
+            style="width: 220px"
+            @keyup.enter="handleSearch"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">

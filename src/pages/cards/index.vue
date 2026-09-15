@@ -18,7 +18,7 @@ const dialogVisible = ref(false)
 const { paginationData, resetCurrentPage, watchPagination } = usePagination({ callback: getTableData })
 
 // 搜索
-const searchData = reactive({ status: "", code: "", batchNote: "" })
+const searchData = reactive({ status: "", code: "", batchNote: "", type: "" })
 
 // 套餐列表（类型下拉动态来源）
 const plans = ref<PlanItem[]>([])
@@ -112,6 +112,7 @@ async function getTableData() {
         status: searchData.status || undefined,
         code: searchData.code || undefined,
         batchNote: searchData.batchNote || undefined,
+        type: searchData.type || undefined,
         only: "root"
       }),
       getCardsApi({ currentPage: 1, size: 5000, only: "children" })
@@ -151,6 +152,7 @@ function resetSearch() {
   searchData.status = ""
   searchData.code = ""
   searchData.batchNote = ""
+  searchData.type = ""
   handleSearch()
 }
 
@@ -411,6 +413,16 @@ onMounted(() => {
         <el-form-item label="状态">
           <el-select v-model="searchData.status" clearable placeholder="全部" style="width: 130px">
             <el-option v-for="(label, value) in cardStatusMap" :key="value" :label="label" :value="value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="类型">
+          <el-select v-model="searchData.type" clearable placeholder="全部" style="width: 140px">
+            <el-option
+              v-for="p in (plans.length ? plans : Object.keys(cardTypeMap).map(t => ({ type: t, name: cardTypeMap[t] })))"
+              :key="p.type"
+              :label="p.name"
+              :value="p.type"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="卡密">

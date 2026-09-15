@@ -17,6 +17,10 @@ export interface OrdersRequestData {
   currentPage: number
   size: number
   status?: string
+  /** 订单号（模糊） */
+  orderNo?: string
+  /** 卡密（模糊，自动忽略分隔符） */
+  cardCode?: string
 }
 
 export interface OrdersStatsData {

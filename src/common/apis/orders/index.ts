@@ -9,7 +9,9 @@ export function getOrdersApi(params: Orders.OrdersRequestData) {
     params: {
       page: params.currentPage,
       pageSize: params.size,
-      status: params.status || undefined
+      status: params.status || undefined,
+      orderNo: params.orderNo || undefined,
+      cardCode: params.cardCode || undefined
     }
   })
 }
