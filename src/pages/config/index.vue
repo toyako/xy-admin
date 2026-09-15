@@ -20,10 +20,17 @@ const configForm = reactive({
   buy_url: "",
   payment_provider: "epay",
   payment_methods: "[]",
+  payment_gateway_priority: "epay",
   epay_url: "",
   epay_pid: "",
   epay_key: "",
   epay_payment_type: "alipay",
+  shujie_url: "https://www.shujiepay.com",
+  shujie_pid: "",
+  shujie_private_key: "",
+  shujie_platform_public_key: "",
+  shujie_payment_type: "alipay",
+  shujie_notify_url: "",
   wxpay_mchid: "",
   wxpay_appid: "",
   wxpay_api_v3_key: "",
@@ -69,7 +76,12 @@ const formRules: FormRules = {
   epay_key: [
     { required: true, message: "商户密钥不能为空", trigger: "blur" },
     { min: 8, message: "密钥长度至少 8 个字符", trigger: "blur" }
-  ]
+  ],
+  shujie_url: [
+    { required: true, message: "接口地址不能为空", trigger: "blur" },
+    { validator: urlValidator, trigger: "blur" }
+  ],
+  shujie_pid: [{ required: true, message: "商户 ID 不能为空", trigger: "blur" }]
 }
 
 async function loadConfig() {
@@ -82,18 +94,26 @@ async function loadConfig() {
     configForm.backend_url = data.backend_url || ""
     configForm.buy_url = data.buy_url || data.site_url || ""
     configForm.payment_provider = data.payment_provider || "epay"
-    // 支付方式多选：JSON → 数组（容错）
+    // 已启用的支付通道（JSON → 数组，容错）：直连 alipay/wxpay；网关 epay/shujie
     try {
       const methods = JSON.parse(data.payment_methods || "[]")
-      enabledPayments.value = Array.isArray(methods) ? methods.filter((m: string) => m === "alipay" || m === "wxpay") : []
+      const valid = ["alipay", "wxpay", "epay", "shujie"]
+      enabledPayments.value = Array.isArray(methods) ? methods.filter((m: string) => valid.includes(m)) : []
     } catch {
       enabledPayments.value = []
     }
     if (enabledPayments.value.length === 0) enabledPayments.value = ["alipay"]
+    configForm.payment_gateway_priority = data.payment_gateway_priority === "shujie" ? "shujie" : "epay"
     configForm.epay_url = data.epay_url || ""
     configForm.epay_pid = data.epay_pid || ""
     configForm.epay_key = data.epay_key || ""
     configForm.epay_payment_type = data.epay_payment_type || "alipay"
+    configForm.shujie_url = data.shujie_url || "https://www.shujiepay.com"
+    configForm.shujie_pid = data.shujie_pid || ""
+    configForm.shujie_private_key = data.shujie_private_key || ""
+    configForm.shujie_platform_public_key = data.shujie_platform_public_key || ""
+    configForm.shujie_payment_type = data.shujie_payment_type || "alipay"
+    configForm.shujie_notify_url = data.shujie_notify_url || ""
     configForm.wxpay_mchid = data.wxpay_mchid || ""
     configForm.wxpay_appid = data.wxpay_appid || ""
     configForm.wxpay_api_v3_key = data.wxpay_api_v3_key || ""
@@ -134,6 +154,23 @@ function validatePayments(): string | null {
       return "已勾选【微信支付】，请完善：商户号 / AppID / APIv3密钥 / 商户私钥 / 证书序列号"
     }
   }
+  if (enabledPayments.value.includes("epay")) {
+    const { epay_url: url, epay_pid: pid, epay_key: key } = configForm
+    if (!url.trim() || !pid.trim() || !key.trim()) {
+      return "已勾选【易支付】，请完善：网关地址 / 商户 PID / 商户密钥"
+    }
+  }
+  if (enabledPayments.value.includes("shujie")) {
+    const {
+      shujie_url: url,
+      shujie_pid: pid,
+      shujie_private_key: priv,
+      shujie_platform_public_key: pub
+    } = configForm
+    if (!url.trim() || !pid.trim() || !priv.trim() || !pub.trim()) {
+      return "已勾选【数捷Pay】，请完善：接口地址 / 商户 ID / 商户私钥 / 平台公钥"
+    }
+  }
   return null
 }
 
@@ -162,10 +199,17 @@ async function handleSave() {
       buy_url: configForm.buy_url,
       payment_provider: configForm.payment_provider,
       payment_methods: JSON.stringify(enabledPayments.value),
+      payment_gateway_priority: configForm.payment_gateway_priority,
       epay_url: configForm.epay_url,
       epay_pid: configForm.epay_pid,
       epay_key: configForm.epay_key,
       epay_payment_type: configForm.epay_payment_type,
+      shujie_url: configForm.shujie_url,
+      shujie_pid: configForm.shujie_pid,
+      shujie_private_key: configForm.shujie_private_key,
+      shujie_platform_public_key: configForm.shujie_platform_public_key,
+      shujie_payment_type: configForm.shujie_payment_type,
+      shujie_notify_url: configForm.shujie_notify_url,
       wxpay_mchid: configForm.wxpay_mchid,
       wxpay_appid: configForm.wxpay_appid,
       wxpay_api_v3_key: configForm.wxpay_api_v3_key,
@@ -240,20 +284,26 @@ onMounted(() => loadConfig())
         <el-card shadow="never">
           <template #header>
             <span class="card-title">支付配置</span>
-            <span class="card-subtitle">勾选用户端可用的支付方式；未勾选/未填完整的通道不会在用户端展示</span>
+            <span class="card-subtitle">勾选启用的支付通道（直连 / 聚合网关）；勾选即展开对应配置，填写不完整无法保存</span>
           </template>
           <el-form :model="configForm" :rules="formRules" label-width="120px" v-loading="loading">
             <el-form-item label="支付方式">
               <el-checkbox-group v-model="enabledPayments">
                 <el-checkbox value="alipay">
-                  支付宝（电脑网站支付）
+                  支付宝（电脑网站支付 · 直连）
                 </el-checkbox>
                 <el-checkbox value="wxpay">
                   微信支付（V3 直连扫码）
                 </el-checkbox>
+                <el-checkbox value="epay">
+                  易支付（聚合网关）
+                </el-checkbox>
+                <el-checkbox value="shujie">
+                  数捷Pay（聚合网关）
+                </el-checkbox>
               </el-checkbox-group>
               <div class="form-hint">
-                用户端只展示勾选的支付方式。勾选即展开对应配置，填写不完整将无法保存。至少勾选一项。
+                买家端固定只展示「支付宝 / 微信支付」两个入口，后端自动选路：优先直连通道，直连不可用时回退到已启用的聚合网关。勾选即展开对应配置，填写不完整将无法保存；至少勾选一项。
               </div>
             </el-form-item>
 
@@ -266,35 +316,22 @@ onMounted(() => loadConfig())
               style="margin-bottom: 16px"
             />
 
-            <el-collapse style="margin-bottom: 16px">
-              <el-collapse-item title="聚合支付（易支付）— 兜底通道（直连通道不可用时自动回退）">
-                <el-form-item label="码支付网关" prop="epay_url">
-                  <el-input v-model="configForm.epay_url" placeholder="https://epay.example.com/submit.php" />
-                  <div class="form-hint">
-                    易支付网关地址（含 /submit.php 或 /api/pay/submit）
-                  </div>
-                </el-form-item>
-                <el-form-item label="商户 PID" prop="epay_pid">
-                  <el-input v-model="configForm.epay_pid" placeholder="1001" />
-                </el-form-item>
-                <el-form-item label="商户密钥" prop="epay_key">
-                  <el-input v-model="configForm.epay_key" type="password" show-password placeholder="密钥" />
-                </el-form-item>
-                <el-form-item label="默认支付方式">
-                  <el-radio-group v-model="configForm.epay_payment_type">
-                    <el-radio value="alipay">
-                      支付宝
-                    </el-radio>
-                    <el-radio value="wxpay">
-                      微信支付
-                    </el-radio>
-                    <el-radio value="qqpay">
-                      QQ 钱包
-                    </el-radio>
-                  </el-radio-group>
-                </el-form-item>
-              </el-collapse-item>
-            </el-collapse>
+            <el-form-item
+              v-if="enabledPayments.includes('epay') && enabledPayments.includes('shujie')"
+              label="网关优先级"
+            >
+              <el-radio-group v-model="configForm.payment_gateway_priority">
+                <el-radio value="epay">
+                  易支付优先
+                </el-radio>
+                <el-radio value="shujie">
+                  数捷Pay优先
+                </el-radio>
+              </el-radio-group>
+              <div class="form-hint">
+                直连通道不可用时，按此顺序选择可用的聚合网关
+              </div>
+            </el-form-item>
 
             <template v-if="enabledPayments.includes('wxpay')">
               <el-divider content-position="left">
@@ -361,6 +398,89 @@ onMounted(() => loadConfig())
                 </div>
               </el-form-item>
             </template>
+
+            <template v-if="enabledPayments.includes('epay')">
+              <el-divider content-position="left">
+                易支付（聚合网关 · 直连不可用时回退）<span class="required-tag">必填</span>
+              </el-divider>
+              <el-form-item label="网关地址" prop="epay_url">
+                <el-input v-model="configForm.epay_url" placeholder="https://epay.example.com/submit.php" />
+                <div class="form-hint">
+                  易支付网关地址（含 /submit.php 或 /api/pay/submit）
+                </div>
+              </el-form-item>
+              <el-form-item label="商户 PID" prop="epay_pid">
+                <el-input v-model="configForm.epay_pid" placeholder="1001" />
+              </el-form-item>
+              <el-form-item label="商户密钥" prop="epay_key">
+                <el-input v-model="configForm.epay_key" type="password" show-password placeholder="密钥" />
+              </el-form-item>
+              <el-form-item label="默认支付方式">
+                <el-radio-group v-model="configForm.epay_payment_type">
+                  <el-radio value="alipay">
+                    支付宝
+                  </el-radio>
+                  <el-radio value="wxpay">
+                    微信支付
+                  </el-radio>
+                  <el-radio value="qqpay">
+                    QQ 钱包
+                  </el-radio>
+                </el-radio-group>
+                <div class="form-hint">
+                  买家所选支付方式无法识别时的兜底类型
+                </div>
+              </el-form-item>
+            </template>
+
+            <template v-if="enabledPayments.includes('shujie')">
+              <el-divider content-position="left">
+                数捷Pay（聚合网关 · V2 RSA 签名 · 直连不可用时回退）<span class="required-tag">必填</span>
+              </el-divider>
+              <el-form-item label="接口地址" prop="shujie_url">
+                <el-input v-model="configForm.shujie_url" placeholder="https://www.shujiepay.com" />
+                <div class="form-hint">
+                  数捷Pay 接口地址，后端实际请求「接口地址 + /api/pay/create」
+                </div>
+              </el-form-item>
+              <el-form-item label="商户 ID" prop="shujie_pid">
+                <el-input v-model="configForm.shujie_pid" placeholder="如 1867" />
+              </el-form-item>
+              <el-form-item label="商户私钥">
+                <el-input v-model="configForm.shujie_private_key" type="textarea" :rows="5" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" />
+                <div class="form-hint">
+                  商户后台 → API 信息 → 生成商户 RSA 密钥对后保存的【商户私钥】全文（用于签名）
+                </div>
+              </el-form-item>
+              <el-form-item label="平台公钥">
+                <el-input v-model="configForm.shujie_platform_public_key" type="textarea" :rows="5" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----" />
+                <div class="form-hint">
+                  API 信息页的【平台公钥】全文（用于回调验签）
+                </div>
+              </el-form-item>
+              <el-form-item label="默认支付方式">
+                <el-radio-group v-model="configForm.shujie_payment_type">
+                  <el-radio value="alipay">
+                    支付宝
+                  </el-radio>
+                  <el-radio value="wxpay">
+                    微信支付
+                  </el-radio>
+                  <el-radio value="qqpay">
+                    QQ 钱包
+                  </el-radio>
+                </el-radio-group>
+                <div class="form-hint">
+                  买家所选支付方式无法识别时的兜底类型
+                </div>
+              </el-form-item>
+              <el-form-item label="回调地址(可选)">
+                <el-input v-model="configForm.shujie_notify_url" placeholder="https://后端地址/api/payment/shujie/notify" />
+                <div class="form-hint">
+                  默认取「后端地址 + /api/payment/shujie/notify」，请勿改成易支付的 notify 地址
+                </div>
+              </el-form-item>
+            </template>
           </el-form>
         </el-card>
       </el-tab-pane>
@@ -408,7 +528,7 @@ onMounted(() => loadConfig())
         {{ saveLoading ? '保存中...' : '保存配置' }}
       </el-button>
       <div class="form-hint" style="margin-top: 8px">
-        勾选的支付方式必须填写完整对应配置才能保存；「聚合支付」为兜底通道，直连不可用时自动回退。
+        勾选的通道必须填写完整对应配置才能保存；买家端固定展示「支付宝 / 微信支付」，直连不可用时自动回退到已启用的聚合网关（易支付 / 数捷Pay）。
       </div>
     </div>
   </div>
