@@ -43,6 +43,7 @@ const configForm = reactive({
   alipay_public_key: "",
   alipay_notify_url: "",
   contact_qq: "",
+  qq_group_key: "",
   downloadItems: [] as { name: string, url: string }[]
 })
 
@@ -122,6 +123,7 @@ async function loadConfig() {
     configForm.wxpay_platform_cert = data.wxpay_platform_cert || ""
     configForm.wxpay_notify_url = data.wxpay_notify_url || ""
     configForm.contact_qq = data.contact_qq || ""
+    configForm.qq_group_key = data.qq_group_key || ""
     // 网盘下载列表：JSON 字符串 → 数组（容错）
     try {
       const parsed = JSON.parse(data.download_items || "[]")
@@ -231,6 +233,7 @@ async function handleSave() {
       alipay_public_key: gate("alipay", configForm.alipay_public_key),
       alipay_notify_url: gate("alipay", configForm.alipay_notify_url),
       contact_qq: configForm.contact_qq,
+      qq_group_key: configForm.qq_group_key.trim(),
       download_items: JSON.stringify(configForm.downloadItems.filter(i => i.url && i.url.trim()))
     })
     ElMessage.success("保存成功")
@@ -280,9 +283,18 @@ onMounted(() => loadConfig())
               </div>
             </el-form-item>
             <el-form-item label="客服QQ群">
-              <el-input v-model="configForm.contact_qq" placeholder="如 123456789（留空则页脚不显示）" />
+              <el-input v-model="configForm.contact_qq" placeholder="如 123456789（留空则页脚与加群按钮都不显示）" />
               <div class="form-hint">
-                用户端页脚「技术支持QQ群」显示此号码
+                用户端页脚显示此号码，同时作为「加入QQ群」按钮的目标群
+              </div>
+            </el-form-item>
+            <el-form-item label="QQ群 Key">
+              <el-input v-model="configForm.qq_group_key" placeholder="选填，如 AbCdEf123456" clearable />
+              <div class="form-hint">
+                选填。QQ群「设置 → 分享群链接 → 复制链接」，链接形如
+                <code>https://qm.qq.com/cgi-bin/qm/qr?k=<b>AbCdEf123456</b>&amp;jump_from=webapi</code>，
+                其中 <b>k=</b> 后面的值即群 Key。<br>
+                填写后：用户点加群按钮直达 QQ 官方加群页（PC/手机均可）；留空：唤起本地 QQ 客户端并弹窗提供复制群号兜底。
               </div>
             </el-form-item>
           </el-form>
