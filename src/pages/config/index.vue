@@ -44,6 +44,7 @@ const configForm = reactive({
   alipay_notify_url: "",
   contact_qq: "",
   qq_group_key: "",
+  footer_text: "",
   downloadItems: [] as { name: string, url: string }[]
 })
 
@@ -124,6 +125,7 @@ async function loadConfig() {
     configForm.wxpay_notify_url = data.wxpay_notify_url || ""
     configForm.contact_qq = data.contact_qq || ""
     configForm.qq_group_key = data.qq_group_key || ""
+    configForm.footer_text = data.footer_text || ""
     // 网盘下载列表：JSON 字符串 → 数组（容错）
     try {
       const parsed = JSON.parse(data.download_items || "[]")
@@ -234,6 +236,7 @@ async function handleSave() {
       alipay_notify_url: gate("alipay", configForm.alipay_notify_url),
       contact_qq: configForm.contact_qq,
       qq_group_key: configForm.qq_group_key.trim(),
+      footer_text: configForm.footer_text.trim(),
       download_items: JSON.stringify(configForm.downloadItems.filter(i => i.url && i.url.trim()))
     })
     ElMessage.success("保存成功")
@@ -295,6 +298,21 @@ onMounted(() => loadConfig())
                 <code>https://qm.qq.com/cgi-bin/qm/qr?k=<b>AbCdEf123456</b>&amp;jump_from=webapi</code>，
                 其中 <b>k=</b> 后面的值即群 Key。<br>
                 填写后：用户点加群按钮直达 QQ 官方加群页（PC/手机均可）；留空：唤起本地 QQ 客户端并弹窗提供复制群号兜底。
+              </div>
+            </el-form-item>
+            <el-form-item label="页脚文案">
+              <el-input
+                v-model="configForm.footer_text"
+                type="textarea"
+                :rows="3"
+                maxlength="500"
+                show-word-limit
+                placeholder="留空则使用默认：© {year} {siteName} · 技术支持QQ群：{qq}"
+              />
+              <div class="form-hint">
+                支持换行（换行即前台分行显示）。可用占位符：
+                <code>{year}</code> 当前年份、<code>{siteName}</code> 站点名称、<code>{qq}</code> 客服QQ群号。<br>
+                例：<code>© {year} {siteName} · 技术支持QQ群：{qq}</code>
               </div>
             </el-form-item>
           </el-form>
