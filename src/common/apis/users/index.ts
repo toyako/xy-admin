@@ -13,7 +13,9 @@ export function getCurrentUserApi() {
 export function refreshTokenApi() {
   return request<Users.RefreshTokenResponseData>({
     url: "auth/refresh",
-    method: "post"
+    method: "post",
+    // 刷新接口自身返回 401 → 说明 refresh token 也失效了，不能再递归刷新
+    skipAuthRefresh: true
   })
 }
 
@@ -21,6 +23,9 @@ export function refreshTokenApi() {
 export function logoutApi() {
   return request({
     url: "auth/logout",
-    method: "post"
+    method: "post",
+    // ⚠️ 登出时 token 往往已失效，该请求会返回 401；
+    //    若让它进入刷新重试流程，就会 logout → 401 → logout 无限循环
+    skipAuthRefresh: true
   })
 }

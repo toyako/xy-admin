@@ -1,25 +1,56 @@
 import type { AxiosInstance, AxiosRequestConfig } from "axios"
-import { getToken, setToken as _setToken } from "@@/utils/local-storage"
+import { setToken as _setToken, getToken, removeToken } from "@@/utils/local-storage"
 import axios from "axios"
 import { get, merge } from "lodash-es"
 import { useUserStore } from "@/pinia/stores/user"
+import { shouldSkipAuthRefresh } from "./auth-retry-policy"
+
+// 给 axios 的请求配置补上本项目自定义标记，供 api 层按需声明
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    /** 该接口不参与 token 刷新重试（登录/登出等自身就会返回 401 的接口） */
+    skipAuthRefresh?: boolean
+    /** 内部标记：本请求已因 token 过期重试过一次 */
+    __isRetryRequest?: boolean
+  }
+}
 
 /** Token 刷新状态管理 */
 let isRefreshing = false
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let pendingRequests: Array<(token: string) => void> = []
+interface PendingResolver { resolve: (token: string) => void, reject: (error: Error) => void }
+let pendingRequests: PendingResolver[] = []
 
-/** 处理等待中的请求队列 */
+/** 刷新成功：唤醒所有等待中的请求 */
 function onTokenRefreshed(newToken: string) {
-  pendingRequests.forEach(callback => callback(newToken))
+  pendingRequests.forEach(({ resolve }) => resolve(newToken))
+  pendingRequests = []
+}
+
+/**
+ * 刷新失败：必须 reject 掉等待中的请求。
+ * 旧实现只清空数组不 reject，等待中的请求会永远挂起（页面一直 loading）。
+ */
+function onTokenRefreshFailed(error: Error) {
+  pendingRequests.forEach(({ reject }) => reject(error))
   pendingRequests = []
 }
 
 /** 将失败的请求加入等待队列 */
 function addPendingRequest(): Promise<string> {
-  return new Promise((resolve) => {
-    pendingRequests.push((token: string) => resolve(token))
+  return new Promise((resolve, reject) => {
+    pendingRequests.push({ resolve, reject })
   })
+}
+
+/** 给重试的请求换上新的 Authorization 头（兼容 AxiosHeaders 实例与普通对象） */
+
+function setAuthHeader(config: any, token: string) {
+  const value = `Bearer ${token}`
+  if (typeof config.headers?.set === "function") {
+    config.headers.set("Authorization", value)
+  } else {
+    config.headers = { ...(config.headers || {}), Authorization: value }
+  }
 }
 
 /** 刷新 Token */
@@ -69,7 +100,11 @@ function createInstance() {
           // 本系统采用 code === 0 来表示没有业务错误
           return apiData
         case 401:
-          // Token 过期时 — 尝试刷新 Token
+          // 业务码 401（HTTP 200 + code 401）→ 与 HTTP 401 走同一套判定
+          if (shouldSkipAuthRefresh(response.config)) {
+            ElMessage.error(apiData.message || "未授权")
+            return Promise.reject(apiData)
+          }
           return handleTokenExpired(response.config)
         default:
           // 不是正确的 code
@@ -85,15 +120,16 @@ function createInstance() {
         case 400:
           error.message = "请求错误"
           break
-        case 401:
-          // HTTP 401 — 尝试刷新 Token（避免重复处理）
-          if (error.config?.url !== "auth/refresh") {
-            return handleTokenExpired(error.config)
+        case 401: {
+          // ⚠️ 关键分支（2026-09-18 修复"无限刷请求"死循环）：
+          // 登录 / 登出 / 刷新这三个接口自身就会返回 401，一旦让它们进入刷新重试流程，
+          // 就会出现 logout → 401 → 刷新失败 → logout → 401 的无限循环。
+          if (shouldSkipAuthRefresh(error.config)) {
+            error.message = message || "用户名或密码错误"
+            break
           }
-          // 刷新 Token 本身返回 401，说明 refresh token 也过期了，直接登出
-          useUserStore().logout()
-          error.message = message || "登录已过期，请重新登录"
-          break
+          return handleTokenExpired(error.config)
+        }
         case 403:
           error.message = message || "拒绝访问"
           break
@@ -130,27 +166,44 @@ function createInstance() {
 }
 
 /** 处理 Token 过期的统一入口 */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 async function handleTokenExpired(config: any) {
-  // 如果正在刷新中，将请求加入等待队列
-  if (isRefreshing) {
-    const token = await addPendingRequest()
-    config.headers.Authorization = `Bearer ${token}`
-    return instance(config)
+  const cfg = config || {}
+
+  // ① 兜底再判一次：不参与刷新的接口 / 已重试过 → 直接失败，不再发起任何请求
+  if (shouldSkipAuthRefresh(cfg)) {
+    return Promise.reject(new Error("登录已过期，请重新登录"))
   }
-  // 开始刷新 Token
+
+  // ② 已有刷新在进行 → 排队等待，拿到新 token 后重试一次
+  if (isRefreshing) {
+    try {
+      const token = await addPendingRequest()
+      setAuthHeader(cfg, token)
+      cfg.__isRetryRequest = true
+      return await instance(cfg)
+    } catch (e) {
+      return Promise.reject(e)
+    }
+  }
+
+  // ③ 由当前请求触发刷新
   isRefreshing = true
   try {
     const newToken = await refreshToken()
-    // 通知所有等待的请求
     onTokenRefreshed(newToken)
-    // 重试当前请求
-    config.headers.Authorization = `Bearer ${newToken}`
-    return instance(config)
+    setAuthHeader(cfg, newToken)
+    cfg.__isRetryRequest = true
+    return await instance(cfg)
   } catch {
-    // 刷新失败，清空队列并登出
-    pendingRequests = []
-    useUserStore().logout()
+    // 刷新失败 → 唤醒等待队列（reject，避免请求永久挂起）、清掉失效 token、只做本地登出
+    onTokenRefreshFailed(new Error("登录已过期，请重新登录"))
+    removeToken()
+    // ⚠️ 必须传 false（只做本地清理）：
+    //    这里若调用 logoutApi() 发 POST /auth/logout，会再拿一个 401，
+    //    又回到响应拦截器 → 再次 logout → 无限循环。
+    useUserStore().logout(false)
+    ElMessage.error("登录已过期，请重新登录")
     return Promise.reject(new Error("Token 刷新失败"))
   } finally {
     isRefreshing = false

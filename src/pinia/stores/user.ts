@@ -46,15 +46,24 @@ export const useUserStore = defineStore("user", () => {
     location.reload()
   }
 
-  // 登出
-  const logout = () => {
-    // 通知后端废弃 Token（best-effort，不阻塞登出流程）
-    logoutApi().catch(() => { /* 忽略网络错误，本地状态仍会清理 */ })
+  /**
+   * 登出
+   * @param callServer 是否通知后端废弃 Token。默认 true（用户主动点「退出登录」时）。
+   *   ⚠️ token 已失效的兜底路径**必须传 false**：此时调 /auth/logout 只会再拿一个 401，
+   *   被响应拦截器捕获后又调用 logout()，形成无限刷请求的死循环（2026-09-18 修复）。
+   */
+  const logout = (callServer = true) => {
+    if (callServer) {
+      // 通知后端废弃 Token（best-effort，不阻塞登出流程）
+      logoutApi().catch(() => { /* 忽略网络错误，本地状态仍会清理 */ })
+    }
     resetToken()
     resetRouter()
     resetTagsView()
-    // 重定向到登录页
-    router.replace("/login")
+    // 重定向到登录页（已在登录页则跳过，避免重复导航）
+    if (router.currentRoute.value.path !== "/login") {
+      router.replace("/login")
+    }
   }
 
   // 重置 Token
