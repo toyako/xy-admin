@@ -180,6 +180,16 @@ export const constantRoutes: RouteRecordRaw[] = [
         }
       },
       {
+        path: "gift-cards",
+        component: () => import("@/pages/gift-cards/index.vue"),
+        name: "GiftCardsManage",
+        meta: {
+          title: "赠送记录",
+          roles: ["super_admin"],
+          keepAlive: true
+        }
+      },
+      {
         path: "plans",
         component: () => import("@/pages/plans/index.vue"),
         name: "PlanManage",

@@ -18,7 +18,7 @@ const dialogVisible = ref(false)
 const { paginationData, resetCurrentPage, watchPagination } = usePagination({ callback: getTableData })
 
 // 搜索
-const searchData = reactive({ status: "", code: "", batchNote: "", type: "" })
+const searchData = reactive({ status: "", code: "", batchNote: "", type: "", source: "" })
 
 // 套餐列表（类型下拉动态来源）
 const plans = ref<PlanItem[]>([])
@@ -47,8 +47,10 @@ async function loadPlans() {
     }
   } catch { /* 保留静态映射兜底 */ }
 }
-const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用", replaced: "已换卡", expired: "已过期" }
-const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger", replaced: "danger", expired: "danger" }
+const cardStatusMap: Record<string, string> = { unused: "未使用", sold: "已售出", activated: "已激活", disabled: "已禁用", replaced: "已换卡", expired: "已过期", gifted: "赠卡未激活" }
+const tagMap: Record<string, "info" | "warning" | "success" | "danger"> = { unused: "info", sold: "warning", activated: "success", disabled: "danger", replaced: "danger", expired: "danger", gifted: "warning" }
+/** 来源：sale=销售库存 / gift=赠送卡（赠送卡不受订单取卡影响，详见「赠送记录」页） */
+const cardSourceMap: Record<string, string> = { sale: "销售", gift: "赠送" }
 
 /** 有效状态：activated + expiresAt 已过 → 显示"已过期"（前端动态判断，避免后端再发 SQL） */
 function effectiveStatus(row: any): string {
@@ -113,6 +115,7 @@ async function getTableData() {
         code: searchData.code || undefined,
         batchNote: searchData.batchNote || undefined,
         type: searchData.type || undefined,
+        source: searchData.source || undefined,
         only: "root"
       }),
       getCardsApi({ currentPage: 1, size: 5000, only: "children" })
@@ -153,6 +156,7 @@ function resetSearch() {
   searchData.code = ""
   searchData.batchNote = ""
   searchData.type = ""
+  searchData.source = ""
   handleSearch()
 }
 
@@ -410,6 +414,12 @@ onMounted(() => {
     <!-- 搜索 -->
     <el-card shadow="never" class="search-wrapper">
       <el-form :inline="true" :model="searchData">
+        <el-form-item label="来源">
+          <el-select v-model="searchData.source" clearable placeholder="全部" style="width: 120px">
+            <el-option label="销售" value="sale" />
+            <el-option label="赠送" value="gift" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchData.status" clearable placeholder="全部" style="width: 130px">
             <el-option v-for="(label, value) in cardStatusMap" :key="value" :label="label" :value="value" />
@@ -529,6 +539,14 @@ onMounted(() => {
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="来源" min-width="80">
+            <template #default="{ row }">
+              <el-tag v-if="row.source === 'gift'" type="warning" size="small" effect="plain">
+                赠送
+              </el-tag>
+              <span v-else class="source-sale">{{ cardSourceMap[row.source] || "销售" }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="机器码" min-width="140" show-overflow-tooltip>
             <template #default="{ row }">
               <el-tooltip :content="row.machineCode || ''" placement="top" :disabled="!row.machineCode">
@@ -617,6 +635,8 @@ onMounted(() => {
       </div>
       <div class="table-hint">
         外层列表按卡密分页；换卡关系以树形展示：原卡为父节点，换卡生成的新卡为子节点（▲ 展开查看），子卡不占分页。
+        <br>
+        统计口径：「未使用 / 已售出 / 已激活 / 已禁用 / 已换卡」只统计销售卡；赠送卡不计入可售库存与销售口径，请到「赠送记录」页管理。
       </div>
     </el-card>
 
@@ -744,6 +764,10 @@ onMounted(() => {
     font-size: 13px;
     color: var(--el-color-primary);
   }
+}
+.source-sale {
+  font-size: 12px;
+  color: #909399;
 }
 .pager-wrapper {
   display: flex;

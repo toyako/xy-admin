@@ -13,8 +13,34 @@ export function getCardsApi(params: Cards.CardsRequestData & { only?: "root" | "
       code: params.code || undefined,
       batchNote: params.batchNote || undefined,
       type: params.type || undefined,
+      source: params.source || undefined,
       only: params.only || undefined
     }
+  })
+}
+
+/** 获取赠送记录列表（source=gift，含受赠人 / 事由 / 操作人 / 赠送时间） */
+export function getGiftCardsApi(params: Cards.GiftCardsRequestData) {
+  return request<Cards.GiftCardsResponseData>({
+    url: "cards/gift",
+    method: "get",
+    params: {
+      page: params.currentPage,
+      pageSize: params.size,
+      status: params.status || undefined,
+      type: params.type || undefined,
+      code: params.code || undefined,
+      giftTo: params.giftTo || undefined
+    }
+  })
+}
+
+/** 生成赠送卡（source=gift + 初始状态 gifted，永不进入销售取卡池） */
+export function generateGiftCardsApi(data: Cards.GenerateGiftCardsRequestData) {
+  return request({
+    url: "cards/gift",
+    method: "post",
+    data
   })
 }
 
