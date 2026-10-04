@@ -65,6 +65,12 @@ function maskIp(ip: string | null): string {
   return `${ip.slice(0, 3)}***`
 }
 
+/** 代码指纹只显示前 8 位（完整的 32 位放 tooltip） */
+function fpShort(fp: string | null | undefined): string {
+  if (!fp) return "-"
+  return fp.length > 8 ? `${fp.slice(0, 8)}…` : fp
+}
+
 /** 格式化在线时长 */
 function formatDuration(seconds: number): string {
   if (seconds < 60) return "刚刚"
@@ -336,6 +342,37 @@ onUnmounted(() => {
             </template>
           </el-table-column>
 
+          <el-table-column label="来源" width="160" show-overflow-tooltip>
+            <template #default="{ row }">
+              <template v-if="row.isDevice">
+                <el-tag size="small" effect="plain">
+                  {{ row.channel || "未上报" }}
+                </el-tag>
+                <div v-if="row.buildId" class="sub-text">
+                  {{ row.buildId }}
+                </div>
+              </template>
+              <span v-else style="color:#c0c4cc">-</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="客户端指纹" width="180">
+            <template #default="{ row }">
+              <template v-if="row.isDevice">
+                <template v-if="row.clientFp">
+                  <el-tooltip :content="row.clientFp" placement="top">
+                    <code class="code-text">{{ fpShort(row.clientFp) }}</code>
+                  </el-tooltip>
+                  <el-tag v-if="row.fpMismatch" type="danger" size="small" class="fp-bad">
+                    疑似改包
+                  </el-tag>
+                </template>
+                <span v-else class="sub-text">未上报</span>
+              </template>
+              <span v-else style="color:#c0c4cc">-</span>
+            </template>
+          </el-table-column>
+
           <el-table-column label="在线时长" width="110">
             <template #default="{ row }">
               <template v-if="row.isDevice">
@@ -454,6 +491,14 @@ onUnmounted(() => {
     font-family: "Consolas", monospace;
     font-size: 13px;
     color: var(--el-color-primary);
+  }
+  .sub-text {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .fp-bad {
+    margin-left: 6px;
   }
 }
 .online-dot {
