@@ -219,6 +219,16 @@ export const constantRoutes: RouteRecordRaw[] = [
         }
       },
       {
+        path: "game-assets",
+        component: () => import("@/pages/game-assets/index.vue"),
+        name: "GameAssetsManage",
+        meta: {
+          title: "数据表管理",
+          roles: ["super_admin"],
+          keepAlive: true
+        }
+      },
+      {
         path: "online-sessions",
         component: () => import("@/pages/online-sessions/index.vue"),
         name: "OnlineSessions",
