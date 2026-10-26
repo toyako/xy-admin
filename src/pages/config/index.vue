@@ -45,8 +45,47 @@ const configForm = reactive({
   contact_qq: "",
   qq_group_url: "",
   footer_text: "",
-  downloadItems: [] as { name: string, url: string }[]
+  /** 下载区展示的启动器版本号（选填，如 1.3.6） */
+  download_version: "",
+  downloadItems: [] as { name: string, url: string, password?: string, primary?: boolean }[]
 })
+
+/**
+ * 主推下标：买家端置顶高亮那一个（最多一个；都不选时买家端自动取第一个）。
+ * set 时清掉其他行的 primary，保证「一主推 + 若干备用」。
+ */
+const primaryIndex = computed({
+  get: () => configForm.downloadItems.findIndex(i => i.primary),
+  set: (idx: number) => {
+    configForm.downloadItems.forEach((i, k) => {
+      i.primary = k === idx
+    })
+  }
+})
+
+function addDownloadItem() {
+  configForm.downloadItems.push({ name: "", url: "", password: "", primary: false })
+}
+
+function removeDownloadItem(idx: number) {
+  configForm.downloadItems.splice(idx, 1)
+}
+
+/**
+ * 兼容旧下载数据：历史上提取码是手写在名称里的（如「115网盘(密码k7b2)」）。
+ * 这里自动拆成独立 password 字段并从名称中移除，避免买家端同时看到两个密码。
+ */
+function normalizeDownloadItem(raw: unknown) {
+  const o = (raw || {}) as { name?: unknown, url?: unknown, password?: unknown, primary?: unknown }
+  let name = String(o.name || "")
+  let password = String(o.password || "")
+  const m = name.match(/[(（]\s*(?:密码|提取码|访问码)\s*[:：]?([^()（）\s]{3,12})[)）]/)
+  if (m) {
+    if (!password) password = m[1]
+    name = name.replace(m[0], "").trim()
+  }
+  return { name, url: String(o.url || ""), password, primary: !!o.primary }
+}
 
 /** URL 格式校验 */
 function urlValidator(_rule: unknown, value: string, callback: (error?: Error) => void) {
@@ -126,10 +165,13 @@ async function loadConfig() {
     configForm.contact_qq = data.contact_qq || ""
     configForm.qq_group_url = data.qq_group_url || ""
     configForm.footer_text = data.footer_text || ""
+    configForm.download_version = data.download_version || ""
     // 网盘下载列表：JSON 字符串 → 数组（容错）
     try {
       const parsed = JSON.parse(data.download_items || "[]")
-      configForm.downloadItems = Array.isArray(parsed) ? parsed : []
+      configForm.downloadItems = Array.isArray(parsed)
+        ? parsed.map((i: unknown) => normalizeDownloadItem(i))
+        : []
     } catch {
       configForm.downloadItems = []
     }
@@ -237,7 +279,17 @@ async function handleSave() {
       contact_qq: configForm.contact_qq,
       qq_group_url: configForm.qq_group_url.trim(),
       footer_text: configForm.footer_text.trim(),
-      download_items: JSON.stringify(configForm.downloadItems.filter(i => i.url && i.url.trim()))
+      download_items: JSON.stringify(
+        configForm.downloadItems
+          .filter(i => i.url && i.url.trim())
+          .map(i => ({
+            name: i.name.trim() || "网盘下载",
+            url: i.url.trim(),
+            password: (i.password || "").trim(),
+            primary: !!i.primary
+          }))
+      ),
+      download_version: configForm.download_version.trim()
     })
     ElMessage.success("保存成功")
     loadConfig()
@@ -542,6 +594,13 @@ onMounted(() => loadConfig())
             <span class="card-subtitle">用户端「资源下载」区展示，支持多个网盘（123/迅雷/蓝奏/百度等均可）</span>
           </template>
           <el-form :model="configForm" label-width="120px">
+            <el-form-item label="版本号">
+              <el-input
+                v-model="configForm.download_version"
+                placeholder="如 1.3.6（留空则买家端不显示版本号）"
+                style="width: 260px"
+              />
+            </el-form-item>
             <el-form-item label="下载列表">
               <div style="width: 100%">
                 <div
@@ -549,9 +608,13 @@ onMounted(() => loadConfig())
                   :key="idx"
                   style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center"
                 >
-                  <el-input v-model="item.name" placeholder="网盘名称（如 123云盘）" style="width: 220px" />
+                  <el-radio v-model="primaryIndex" :value="idx" title="设为买家端主推下载">
+                    主推
+                  </el-radio>
+                  <el-input v-model="item.name" placeholder="网盘名称（如 115网盘）" style="width: 180px" />
                   <el-input v-model="item.url" placeholder="网盘链接 https://..." style="flex: 1" />
-                  <el-button type="danger" plain size="small" @click="configForm.downloadItems.splice(idx, 1)">
+                  <el-input v-model="item.password" placeholder="提取码" style="width: 130px" />
+                  <el-button type="danger" plain size="small" @click="removeDownloadItem(idx)">
                     删除
                   </el-button>
                 </div>
@@ -559,12 +622,12 @@ onMounted(() => loadConfig())
                   type="primary"
                   plain
                   size="small"
-                  @click="configForm.downloadItems.push({ name: '', url: '' })"
+                  @click="addDownloadItem()"
                 >
                   + 添加网盘
                 </el-button>
                 <div class="form-hint" style="margin-top: 8px">
-                  支持 123云盘、迅雷、蓝奏云、坚果云、115、腾讯微云等任意网盘链接，可添加 1~N 个；保存后用户端购买页自动展示。
+                  支持 115、蓝奏云、迅雷、百度、123云盘等任意网盘链接。<b>提取码请单独填在右边那一栏</b>（买家端会展示并支持一键复制），不要再写进网盘名称里。标「主推」的会置顶高亮，其余标为「备用」。
                 </div>
               </div>
             </el-form-item>
